@@ -38,7 +38,6 @@ function createWindow() {
     );
 
 
-
     mainWindow.on(
         "closed",
         () => {
@@ -88,11 +87,6 @@ ipcMain.handle(
 
     }
 );
-
-
-
-
-
 
 app.whenReady().then(() => {
 

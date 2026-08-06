@@ -91,7 +91,40 @@ export default function App() {
 
 
 
+function updateNode(key,value){
 
+
+    setNodes(nodes =>
+
+        nodes.map(node=>{
+
+
+            if(node.type !== "trunk")
+                return node;
+
+
+
+            return {
+
+                ...node,
+
+                data:{
+
+                    ...node.data,
+
+                    [key]:value
+
+                }
+
+            };
+
+
+        })
+
+    );
+
+
+}
 
 
 

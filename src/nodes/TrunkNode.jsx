@@ -1,7 +1,7 @@
 import { Handle, Position } from "@xyflow/react";
 
 
-export default function TrunkNode() {
+export default function TrunkNode({ data }) {
 
 
     return (
@@ -22,7 +22,7 @@ export default function TrunkNode() {
 
                 fontWeight:"bold",
 
-                minWidth:"120px",
+                minWidth:"160px",
 
                 textAlign:"center"
 
@@ -30,7 +30,6 @@ export default function TrunkNode() {
 
         >
 
-            {/* Entrée depuis Seed */}
 
             <Handle
 
@@ -45,11 +44,100 @@ export default function TrunkNode() {
             />
 
 
-            🌲 Trunk
+
+            <div>
+                🌲 Trunk
+            </div>
+
+
+            <hr/>
 
 
 
-            {/* Sortie vers Branch */}
+            <label>
+                Length
+            </label>
+
+            <input
+
+                type="number"
+
+                value={data.length}
+
+                onChange={(e)=>
+                    
+                    data.update(
+                        "length",
+                        Number(e.target.value)
+                    )
+
+                }
+
+            />
+
+
+
+            <label>
+                Radius
+            </label>
+
+            <input
+
+                type="number"
+
+                value={data.radius}
+
+                onChange={(e)=>
+                    
+                    data.update(
+                        "radius",
+                        Number(e.target.value)
+                    )
+
+                }
+
+            />
+
+
+
+            <label>
+                Branches
+            </label>
+
+            <input
+
+                type="number"
+
+                value={data.branches}
+
+                onChange={(e)=>
+                    
+                    data.update(
+                        "branches",
+                        Number(e.target.value)
+                    )
+
+                }
+
+            />
+
+
+            <input
+
+                type="number"
+
+                value={data.seed}
+
+                onChange={(e)=>
+                    
+                    data.update(
+                        "seed",
+                        Number(e.target.value)
+                    )
+
+                }
+
+            />
 
             <Handle
 
