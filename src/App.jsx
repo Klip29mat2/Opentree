@@ -14,6 +14,7 @@ import {
     addEdge
 } from "@xyflow/react";
 
+import TreeCompiler from "./Engine/TreeCompiler.js";
 
 import "@xyflow/react/dist/style.css";
 
@@ -44,7 +45,7 @@ export default function App() {
 
     const [menu, setMenu] = useState(null);
 
-
+    const compiler = new TreeCompiler();
 
 
 
@@ -68,7 +69,18 @@ export default function App() {
 
 
 
+useEffect(()=>{
 
+    const tree = compiler.compile(
+        nodes,
+        edges
+    );
+
+
+    console.log(tree);
+
+
+},[nodes, edges]);
 
 
     // déplacement des edges
@@ -448,7 +460,7 @@ function updateNode(key,value){
 
         >
 
-
+        <Viewport3D/>
 
             <ReactFlow
 
@@ -499,8 +511,6 @@ function updateNode(key,value){
                 createNode={createNode}
 
             />
-
-        <Viewport3D/>
 
 
         </div>
