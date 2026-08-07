@@ -42,4 +42,4 @@ The project is currently focused on building the core editor architecture, node 
 
 ## License
 
-Open source project. License to be defined.
+MIT licence.
