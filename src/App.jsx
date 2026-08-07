@@ -3,7 +3,7 @@ import {
     useCallback,
     useEffect
 } from "react";
-
+import Viewport3D from "./components/Viewport3D.jsx";
 
 import {
     ReactFlow,
@@ -435,6 +435,9 @@ function updateNode(key,value){
 
             style={{
 
+                display:"flex",
+
+
                 width:"100vw",
 
                 height:"100vh",
@@ -497,6 +500,7 @@ function updateNode(key,value){
 
             />
 
+        <Viewport3D/>
 
 
         </div>
