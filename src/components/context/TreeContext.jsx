@@ -14,8 +14,11 @@ export function TreeProvider({ children }) {
             {children}
         </TreeContext.Provider>
     );
+
 }
 
 export function useTree() {
+
     return useContext(TreeContext);
+
 }

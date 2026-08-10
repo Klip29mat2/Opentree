@@ -1,13 +1,17 @@
-
 import { Canvas } from "@react-three/fiber";
-import { OrbitControls } from "@react-three/drei";
+import { OrbitControls, useTexture } from "@react-three/drei";
 import { useTree } from "../context/TreeContext.jsx";
-
+import * as THREE from "three";
 
 function TreeModel() {
 
+    const texture = useTexture("/textures/palmtrunk.jpg");
     const { tree } = useTree();
 
+
+    texture.wrapS = THREE.RepeatWrapping;
+    texture.wrapT = THREE.RepeatWrapping;
+    texture.repeat.set(1, 10);
     return (
         <mesh>
 
@@ -21,14 +25,12 @@ function TreeModel() {
             />
 
             <meshStandardMaterial
-                color="#795548"
+                map={texture}
             />
 
         </mesh>
     );
-
 }
-
 
 export default function Viewport3D() {
 
@@ -39,9 +41,7 @@ export default function Viewport3D() {
             }}
         >
 
-            <ambientLight
-                intensity={1}
-            />
+            <ambientLight intensity={1} />
 
             <directionalLight
                 position={[5, 5, 5]}
@@ -53,5 +53,4 @@ export default function Viewport3D() {
 
         </Canvas>
     );
-
 }
