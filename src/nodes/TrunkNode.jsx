@@ -1,4 +1,5 @@
 import { useTree } from "../context/TreeContext.jsx";
+import { Handle, Position } from "@xyflow/react";
 
 export default function TrunkNode() {
 
@@ -29,6 +30,7 @@ export default function TrunkNode() {
 
         <div
             style={{
+                position: "relative",
                 width: "220px",
                 background: "#1e1e1e",
                 border: "1px solid #3a3a3a",
@@ -40,7 +42,21 @@ export default function TrunkNode() {
             }}
         >
 
-            {/* Header */}
+            {/* INPUT */}
+
+            <Handle
+                type="target"
+                position={Position.Left}
+                style={{
+                    width: "10px",
+                    height: "10px",
+                    background: "#81c784",
+                    border: "2px solid #1e1e1e"
+                }}
+            />
+
+
+            {/* HEADER */}
 
             <div
                 style={{
@@ -61,7 +77,7 @@ export default function TrunkNode() {
             </div>
 
 
-            {/* Content */}
+            {/* CONTENT */}
 
             <div
                 style={{
@@ -69,7 +85,7 @@ export default function TrunkNode() {
                 }}
             >
 
-                {/* Length */}
+                {/* LENGTH */}
 
                 <div
                     style={{
@@ -109,7 +125,7 @@ export default function TrunkNode() {
                 </div>
 
 
-                {/* Radius */}
+                {/* RADIUS */}
 
                 <div>
 
@@ -127,6 +143,7 @@ export default function TrunkNode() {
                     <input
                         type="number"
                         min={0}
+                        max="20"
                         step="0.1"
                         value={tree.trunkradius}
                         onChange={updateRadius}
@@ -145,6 +162,20 @@ export default function TrunkNode() {
                 </div>
 
             </div>
+
+
+            {/* OUTPUT */}
+
+            <Handle
+                type="source"
+                position={Position.Right}
+                style={{
+                    width: "10px",
+                    height: "10px",
+                    background: "#64b5f6",
+                    border: "2px solid #1e1e1e"
+                }}
+            />
 
         </div>
 

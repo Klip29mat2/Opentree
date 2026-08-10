@@ -1,19 +1,26 @@
 import { Canvas } from "@react-three/fiber";
 import { OrbitControls, useTexture } from "@react-three/drei";
 import { useTree } from "../context/TreeContext.jsx";
-import * as THREE from "three";
 
 function TreeModel() {
 
-    const texture = useTexture("/textures/palmtrunk.jpg");
     const { tree } = useTree();
 
+    const texture = useTexture("/textures/palmtrunk.jpg");
 
-    texture.wrapS = THREE.RepeatWrapping;
-    texture.wrapT = THREE.RepeatWrapping;
-    texture.repeat.set(1, 10);
     return (
-        <mesh>
+        <mesh
+            rotation={[
+                tree.rotation.x * Math.PI / 180,
+                tree.rotation.y * Math.PI / 180,
+                tree.rotation.z * Math.PI / 180
+            ]}
+            scale={[
+                tree.scale.x,
+                tree.scale.y,
+                tree.scale.z
+            ]}
+        >
 
             <cylinderGeometry
                 args={[

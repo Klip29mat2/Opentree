@@ -2,7 +2,10 @@ import SeedNode from "./SeedNode.jsx";
 import TrunkNode from "./TrunkNode.jsx";
 import BranchNode from "./BranchNode.jsx";
 import LeafNode from "./LeafNode.jsx";
-import OutputNode from "./OutputNode.jsx"
+import OutputNode from "./OutputNode.jsx";
+import RotatorNode from "./RotatorNode.jsx";
+import ScaleNode from "./ScaleNode.jsx";
+
 
 export const nodeTypes = {
 
@@ -14,10 +17,13 @@ export const nodeTypes = {
 
     leaf: LeafNode,
 
+    rotate: RotatorNode,
+
+    scale: ScaleNode,
+
     output: OutputNode
 
 };
-
 
 
 export const nodes = [
@@ -36,7 +42,6 @@ export const nodes = [
 
     },
 
-
     {
         id: "2",
 
@@ -49,10 +54,29 @@ export const nodes = [
 
         data: {}
 
+    },
+
+    {
+        id: "3",
+        type: "rotate",
+        position: {
+            x: 600,
+            y: 200
+        },
+        data: {}
+    },
+
+    {
+        id: "4",
+        type: "scale",
+        position: {
+            x: 850,
+            y: 200
+        },
+        data: {}
     }
 
 ];
-
 
 
 export const edges = [];
