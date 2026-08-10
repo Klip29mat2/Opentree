@@ -1,4 +1,3 @@
-
 import { createContext, useContext, useState } from "react";
 
 const TreeContext = createContext(null);
@@ -6,7 +5,7 @@ const TreeContext = createContext(null);
 export function TreeProvider({ children }) {
 
     const [tree, setTree] = useState({
-        trunklength: 150,
+        trunklength: 50,
         trunkradius: 2
     });
 

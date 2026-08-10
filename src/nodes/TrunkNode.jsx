@@ -1,156 +1,150 @@
-import { Handle, Position } from "@xyflow/react";
 import { useTree } from "../context/TreeContext.jsx";
 
-export default function TrunkNode({ data }) {
+export default function TrunkNode() {
+
+    const { tree, setTree } = useTree();
+
+
+    function updateLength(event) {
+
+        setTree({
+            ...tree,
+            trunklength: Number(event.target.value)
+        });
+
+    }
+
+
+    function updateRadius(event) {
+
+        setTree({
+            ...tree,
+            trunkradius: Number(event.target.value)
+        });
+
+    }
 
 
     return (
 
         <div
-
             style={{
-
-                background:"#795548",
-
-                color:"white",
-
-                padding:"12px 20px",
-
-                borderRadius:"8px",
-
-                border:"2px solid #a1887f",
-
-                fontWeight:"bold",
-
-                minWidth:"160px",
-
-                textAlign:"center"
-
+                width: "220px",
+                background: "#1e1e1e",
+                border: "1px solid #3a3a3a",
+                borderRadius: "10px",
+                overflow: "hidden",
+                color: "#eeeeee",
+                fontFamily: "Inter, sans-serif",
+                boxShadow: "0 6px 20px rgba(0, 0, 0, 0.35)"
             }}
-
         >
 
+            {/* Header */}
 
-            <Handle
-
-                type="target"
-
-                position={Position.Left}
-
+            <div
                 style={{
-                    background:"#4caf50"
+                    padding: "10px 12px",
+                    background: "#795548",
+                    fontWeight: "600",
+                    fontSize: "14px",
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "8px"
                 }}
+            >
 
-            />
+                <span>🌳</span>
 
+                <span>Trunk</span>
 
-
-            <div>
-                🌲 Trunk
             </div>
 
 
-            <hr/>
+            {/* Content */}
 
-
-
-            <label>
-                Length
-            </label>
-
-            <input
-
-                type="number"
-
-                value={data.length}
-
-                onChange={(e)=>
-                    
-                    data.update(
-                        "length",
-                        Number(e.target.value)
-                    )
-
-                }
-
-            />
-
-
-
-            <label>
-                Radius
-            </label>
-
-            <input
-
-                type="number"
-
-                value={data.radius}
-
-                onChange={(e)=>
-                    
-                    data.update(
-                        "radius",
-                        Number(e.target.value)
-                    )
-
-                }
-
-            />
-
-
-
-            <label>
-                Branches
-            </label>
-
-            <input
-
-                type="number"
-
-                value={data.branches}
-
-                onChange={(e)=>
-                    
-                    data.update(
-                        "branches",
-                        Number(e.target.value)
-                    )
-
-                }
-
-            />
-
-
-            <input
-
-                type="number"
-
-                value={data.seed}
-
-                onChange={(e)=>
-                    
-                    data.update(
-                        "seed",
-                        Number(e.target.value)
-                    )
-
-                }
-
-            />
-
-            <Handle
-
-                type="source"
-
-                position={Position.Right}
-
+            <div
                 style={{
-                    background:"#66bb6a"
+                    padding: "12px"
                 }}
+            >
 
-            />
+                {/* Length */}
 
+                <div
+                    style={{
+                        marginBottom: "10px"
+                    }}
+                >
+
+                    <label
+                        style={{
+                            display: "block",
+                            marginBottom: "5px",
+                            color: "#aaaaaa",
+                            fontSize: "12px"
+                        }}
+                    >
+                        Length
+                    </label>
+
+                    <input
+                        type="number"
+                        min={0}
+                        step="0.1"
+                        value={tree.trunklength}
+                        onChange={updateLength}
+                        style={{
+                            width: "100%",
+                            boxSizing: "border-box",
+                            padding: "7px 8px",
+                            background: "#121212",
+                            color: "#ffffff",
+                            border: "1px solid #444",
+                            borderRadius: "5px",
+                            outline: "none"
+                        }}
+                    />
+
+                </div>
+
+
+                {/* Radius */}
+
+                <div>
+
+                    <label
+                        style={{
+                            display: "block",
+                            marginBottom: "5px",
+                            color: "#aaaaaa",
+                            fontSize: "12px"
+                        }}
+                    >
+                        Radius
+                    </label>
+
+                    <input
+                        type="number"
+                        min={0}
+                        step="0.1"
+                        value={tree.trunkradius}
+                        onChange={updateRadius}
+                        style={{
+                            width: "100%",
+                            boxSizing: "border-box",
+                            padding: "7px 8px",
+                            background: "#121212",
+                            color: "#ffffff",
+                            border: "1px solid #444",
+                            borderRadius: "5px",
+                            outline: "none"
+                        }}
+                    />
+
+                </div>
+
+            </div>
 
         </div>
 
