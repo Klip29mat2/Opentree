@@ -1,80 +1,57 @@
+
 import { Canvas } from "@react-three/fiber";
-import { OrbitControls, useGLTF } from "@react-three/drei";
-import * as THREE from "three"; 
-
-function TreeModel(){
+import { OrbitControls } from "@react-three/drei";
+import { useTree } from "../context/TreeContext.jsx";
 
 
-const geometry = new THREE.CylinderGeometry(
-    1,    // rayon du haut
-    1,    // rayon du bas
-    length={tree.length},    // hauteur
-    32    // nombre de segments
-);
+function TreeModel() {
+
+    const { tree } = useTree();
 
     return (
+        <mesh>
 
-    <mesh>
-        <cylinderGeometry
-            args={[1, 1, 5, 32]}
-        />
+            <cylinderGeometry
+                args={[
+                    tree.trunkradius,
+                    tree.trunkradius,
+                    tree.trunklength,
+                    32
+                ]}
+            />
 
-        <meshStandardMaterial
-            color="#795548"
-        />
-    </mesh>
+            <meshStandardMaterial
+                color="#795548"
+            />
 
-
+        </mesh>
     );
 
 }
 
 
-
-export default function Viewport3D(){
-
+export default function Viewport3D() {
 
     return (
-
         <Canvas
-
             camera={{
-
-                position:[
-                    0,
-                    2,
-                    5
-                ]
-
+                position: [0, 2, 5]
             }}
-
         >
-
 
             <ambientLight
                 intensity={1}
             />
 
-
             <directionalLight
-
-                position={[
-                    5,
-                    5,
-                    5
-                ]}
-
+                position={[5, 5, 5]}
             />
 
+            <TreeModel />
 
-            <TreeModel/>
-
-
-            <OrbitControls/>
-
+            <OrbitControls />
 
         </Canvas>
-
     );
 
 }

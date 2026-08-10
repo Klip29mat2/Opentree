@@ -1,5 +1,5 @@
 import { Handle, Position } from "@xyflow/react";
-
+import { useTree } from "../context/TreeContext.jsx";
 
 export default function TrunkNode({ data }) {
 
