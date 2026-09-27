@@ -105,17 +105,6 @@ export default function ScaleNode() {
 
             </div>
 
-            <Handle
-                type="source"
-                position={Position.Right}
-                style={{
-                    width: "10px",
-                    height: "10px",
-                    background: "#64b5f6",
-                    border: "2px solid #1e1e1e"
-                }}
-            />
-
         </div>
     );
 }

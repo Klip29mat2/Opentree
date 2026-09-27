@@ -67,6 +67,9 @@ export default function NodeContextMenu({
                 📤 Output
             </button>
 
+          <button onClick={() => createNode("subdivide")}>
+                ⚛️ Subdivide
+            </button>
 
         </div>
 
