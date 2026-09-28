@@ -8,8 +8,13 @@ function TreeModel() {
 
     const texture = useTexture("/textures/palmtrunk.jpg");
 
+    const subdivisions = tree.subdivisions ?? 1;
+
+    const segmentLength =
+        tree.trunklength / subdivisions;
+
     return (
-        <mesh
+        <group
             rotation={[
                 tree.rotation.x * Math.PI / 180,
                 tree.rotation.y * Math.PI / 180,
@@ -22,20 +27,41 @@ function TreeModel() {
             ]}
         >
 
-            <cylinderGeometry
-                args={[
-                    tree.trunkradius,
-                    tree.trunkradius,
-                    tree.trunklength,
-                    32
-                ]}
-            />
+            {Array.from(
+                { length: subdivisions },
+                (_, index) => {
 
-            <meshStandardMaterial
-                map={texture}
-            />
+                    const y =
+                        -tree.trunklength / 2
+                        + segmentLength / 2
+                        + index * segmentLength;
 
-        </mesh>
+                    return (
+                        <mesh
+                            key={index}
+                            position={[0, y, 0]}
+                        >
+
+                            <cylinderGeometry
+                                args={[
+                                    tree.trunkradius,
+                                    tree.trunkradius,
+                                    segmentLength,
+                                    32
+                                ]}
+                            />
+
+                            <meshStandardMaterial
+                                map={texture}
+                            />
+
+                        </mesh>
+                    );
+
+                }
+            )}
+
+        </group>
     );
 }
 
