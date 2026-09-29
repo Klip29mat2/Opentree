@@ -12,6 +12,13 @@ export default function RandomizeNode() {
         });
     }
 
+    function updateCoefficient(event) {
+        setTree({
+            ...tree,
+            randomCoefficient: Number(event.target.value)
+        });
+    }
+
     return (
         <div
             style={{
@@ -41,12 +48,21 @@ export default function RandomizeNode() {
                 onChange={updatePercentage}
             />
 
-            <span>%</span>
+            <label>Coefficient</label>
+
+            <input
+                type="number"
+                min="0"
+                max="10"
+                value={tree.randomCoefficient ?? 1}
+                onChange={updateCoefficient}
+            />
 
             <Handle
                 type="source"
                 position={Position.Right}
             />
+
         </div>
     );
 }

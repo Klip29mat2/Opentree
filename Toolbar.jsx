@@ -9,7 +9,7 @@ export default function Toolbar({ onSettings }) {
             padding: "0 15px",
             gap: "20px"
         }}>
-            <b>🌳 TreeForge</b>
+            <b>🌳 Opentree </b>
 
             <button onClick={onSettings}>
                 ⚙ Settings

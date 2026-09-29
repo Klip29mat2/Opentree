@@ -71,6 +71,19 @@ export default function NodeContextMenu({
                 ⚛️ Subdivide
             </button>
 
+
+      <button onClick={() => createNode("randomize")}>
+                Randomize
+            </button>
+
+          <button onClick={() => createNode("scale")}>
+                Scale
+            </button>
+
+            
+          <button onClick={() => createNode("rotate")}>
+                Rotate
+            </button>
         </div>
 
     );

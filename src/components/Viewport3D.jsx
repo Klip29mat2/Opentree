@@ -1,6 +1,8 @@
 import { Canvas } from "@react-three/fiber";
 import { OrbitControls, useTexture } from "@react-three/drei";
 import { useTree } from "../context/TreeContext.jsx";
+import * as THREE from "three";
+
 
 function TreeModel() {
 
@@ -8,7 +10,8 @@ function TreeModel() {
 
     const texture = useTexture("/textures/palmtrunk.jpg");
 
-    const subdivisions = tree.subdivisions ?? 1;
+    const subdivisions =
+        tree.subdivisions ?? 1;
 
     const segmentLength =
         tree.trunklength / subdivisions;
@@ -16,13 +19,18 @@ function TreeModel() {
     const percentage =
         tree.randomPercentage ?? 0;
 
+        const coefficient =
+    tree.randomCoefficient ?? 1;
+
     return (
         <group
+
             rotation={[
                 tree.rotation.x * Math.PI / 180,
                 tree.rotation.y * Math.PI / 180,
                 tree.rotation.z * Math.PI / 180
             ]}
+
             scale={[
                 tree.scale.x,
                 tree.scale.y,
@@ -39,6 +47,7 @@ function TreeModel() {
                         + segmentLength / 2
                         + index * segmentLength;
 
+
                     // Est-ce que ce cylindre doit bouger ?
                     const random =
                         Math.random() * 100;
@@ -46,16 +55,18 @@ function TreeModel() {
                     const shouldMove =
                         random < percentage;
 
+
                     // Déplacement aléatoire
                     const x =
                         shouldMove
-                            ? (Math.random() - 0.5) * 2
+                            ? (Math.random() - 0.5)* coefficient
                             : 0;
 
                     const z =
                         shouldMove
-                            ? (Math.random() - 0.5) * 2
+                            ? (Math.random() - 0.5)* coefficient
                             : 0;
+
 
                     return (
                         <mesh
@@ -86,6 +97,42 @@ function TreeModel() {
     );
 }
 
+
+
+function Ground() {
+
+    const gridTexture =
+        useTexture("/textures/grid.png");
+
+
+    gridTexture.wrapS =
+        THREE.RepeatWrapping;
+
+    gridTexture.wrapT =
+        THREE.RepeatWrapping;
+
+    gridTexture.repeat.set(20, 20);
+
+
+    return (
+        <mesh
+            position={[0, 0, 0]}
+        >
+
+            <boxGeometry
+                args={[100, 0.1, 100]}
+            />
+
+            <meshStandardMaterial
+                map={gridTexture}
+            />
+
+        </mesh>
+    );
+}
+
+
+
 export default function Viewport3D() {
 
     return (
@@ -95,13 +142,17 @@ export default function Viewport3D() {
             }}
         >
 
-            <ambientLight intensity={1} />
+            <ambientLight
+                intensity={1}
+            />
 
             <directionalLight
                 position={[5, 5, 5]}
             />
 
             <TreeModel />
+
+            <Ground />
 
             <OrbitControls />
 
