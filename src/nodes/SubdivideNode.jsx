@@ -26,18 +26,6 @@ export default function SubdivideNode() {
             }}
         >
 
-            {/* INPUT */}
-
-            <Handle
-                type="target"
-                position={Position.Left}
-                style={{
-                    width: "10px",
-                    height: "10px",
-                    background: "#81c784",
-                    border: "2px solid #1e1e1e"
-                }}
-            />
 
             {/* HEADER */}
 
@@ -92,18 +80,7 @@ export default function SubdivideNode() {
 
             </div>
 
-            {/* OUTPUT */}
 
-            <Handle
-                type="source"
-                position={Position.Right}
-                style={{
-                    width: "10px",
-                    height: "10px",
-                    background: "#ce93d8",
-                    border: "2px solid #1e1e1e"
-                }}
-            />
 
         </div>
     );

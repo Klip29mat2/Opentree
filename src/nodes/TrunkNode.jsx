@@ -42,20 +42,6 @@ export default function TrunkNode() {
             }}
         >
 
-            {/* INPUT */}
-
-            <Handle
-                type="target"
-                position={Position.Left}
-                style={{
-                    width: "10px",
-                    height: "10px",
-                    background: "#81c784",
-                    border: "2px solid #1e1e1e"
-                }}
-            />
-
-
             {/* HEADER */}
 
             <div
@@ -164,18 +150,6 @@ export default function TrunkNode() {
             </div>
 
 
-            {/* OUTPUT */}
-
-            <Handle
-                type="source"
-                position={Position.Right}
-                style={{
-                    width: "10px",
-                    height: "10px",
-                    background: "#64b5f6",
-                    border: "2px solid #1e1e1e"
-                }}
-            />
 
         </div>
 

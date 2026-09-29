@@ -29,10 +29,6 @@ export default function RandomizeNode() {
                 width: "180px"
             }}
         >
-            <Handle
-                type="target"
-                position={Position.Left}
-            />
 
             <b>🎲 Randomize</b>
 
@@ -58,10 +54,6 @@ export default function RandomizeNode() {
                 onChange={updateCoefficient}
             />
 
-            <Handle
-                type="source"
-                position={Position.Right}
-            />
 
         </div>
     );
