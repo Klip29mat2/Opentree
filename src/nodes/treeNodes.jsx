@@ -5,6 +5,7 @@ import LeafNode from "./LeafNode.jsx";
 import RotatorNode from "./RotatorNode.jsx";
 import ScaleNode from "./ScaleNode.jsx";
 import SubdivideNode from "./SubdivideNode.jsx";
+import RandomizeNode from "./RandomizeNode.jsx";
 
 export const nodeTypes = {
     seed: SeedNode,
@@ -14,6 +15,7 @@ export const nodeTypes = {
     rotate: RotatorNode,
     scale: ScaleNode,
     subdivide: SubdivideNode,
+    randomize: RandomizeNode,
 };
 
 export const nodes = [
@@ -58,6 +60,16 @@ export const nodes = [
         type: "subdivide",
         position: {
             x: 1100,
+            y: 200
+        },
+        data: {}
+    },
+
+    {
+        id: "6",
+        type: "randomize",
+        position: {
+            x: 1120,
             y: 200
         },
         data: {}

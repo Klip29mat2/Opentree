@@ -13,6 +13,9 @@ function TreeModel() {
     const segmentLength =
         tree.trunklength / subdivisions;
 
+    const percentage =
+        tree.randomPercentage ?? 0;
+
     return (
         <group
             rotation={[
@@ -36,10 +39,28 @@ function TreeModel() {
                         + segmentLength / 2
                         + index * segmentLength;
 
+                    // Est-ce que ce cylindre doit bouger ?
+                    const random =
+                        Math.random() * 100;
+
+                    const shouldMove =
+                        random < percentage;
+
+                    // Déplacement aléatoire
+                    const x =
+                        shouldMove
+                            ? (Math.random() - 0.5) * 2
+                            : 0;
+
+                    const z =
+                        shouldMove
+                            ? (Math.random() - 0.5) * 2
+                            : 0;
+
                     return (
                         <mesh
                             key={index}
-                            position={[0, y, 0]}
+                            position={[x, y, z]}
                         >
 
                             <cylinderGeometry
