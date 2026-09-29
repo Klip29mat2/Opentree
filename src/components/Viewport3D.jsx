@@ -125,6 +125,8 @@ function Ground() {
 
             <meshStandardMaterial
                 map={gridTexture}
+                transparent={true}
+
             />
 
         </mesh>
