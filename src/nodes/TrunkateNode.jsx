@@ -1,17 +1,21 @@
-import { Handle, Position } from "@xyflow/react";
 import { useTree } from "../context/TreeContext.jsx";
+import { Handle, Position } from "@xyflow/react";
 
-export default function SubdivideNode() {
+export default function TrunkateNode() {
+
     const { tree, setTree } = useTree();
 
-    function updateDivisions(event) {
+    function updateTrunkate(value) {
+
         setTree({
             ...tree,
-            subdivisions: Number(event.target.value)
+            trunkate: Number(value)
         });
+
     }
 
     return (
+
         <div
             style={{
                 position: "relative",
@@ -22,50 +26,47 @@ export default function SubdivideNode() {
                 overflow: "hidden",
                 color: "#eeeeee",
                 fontFamily: "Inter, sans-serif",
-                boxShadow: "0 6px 20px rgba(0, 0, 0, 0.35)"
+                boxShadow: "0 6px 20px rgba(0,0,0,0.35)"
             }}
         >
 
-
-            {/* HEADER */}
+            <Handle
+                type="target"
+                position={Position.Left}
+            />
 
             <div
                 style={{
                     padding: "10px 12px",
-                    background: "#512454",
+                    background: "#562800",
                     fontWeight: "600",
                     fontSize: "14px"
                 }}
             >
-                <span>Subdivide</span>
+                ✂️ Trunkate
             </div>
 
-            {/* CONTENT */}
-
-            <div
-                style={{
-                    padding: "12px"
-                }}
-            >
+            <div style={{ padding: "12px" }}>
 
                 <label
                     style={{
                         display: "block",
-                        marginBottom: "5px",
+                        marginBottom: "4px",
                         color: "#aaaaaa",
                         fontSize: "12px"
                     }}
                 >
-                    Divisions
+                    Trunkate
                 </label>
 
                 <input
                     type="number"
-                    min={1}
-                    max={100}
-                    step={1}
-                    value={tree.subdivisions ?? 5}
-                    onChange={updateDivisions}
+                    min="0"
+                    max="100"
+                    value={tree.trunkate ?? 0}
+                    onChange={(event) =>
+                        updateTrunkate(event.target.value)
+                    }
                     style={{
                         width: "100%",
                         boxSizing: "border-box",
@@ -73,15 +74,19 @@ export default function SubdivideNode() {
                         background: "#121212",
                         color: "#ffffff",
                         border: "1px solid #444",
-                        borderRadius: "5px",
-                        outline: "none"
+                        borderRadius: "5px"
                     }}
                 />
 
             </div>
 
-
+            <Handle
+                type="source"
+                position={Position.Right}
+            />
 
         </div>
+
     );
+
 }

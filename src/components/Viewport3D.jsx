@@ -8,7 +8,8 @@ function TreeModel() {
 
     const { tree } = useTree();
 
-    const texture = useTexture("/textures/palmtrunk.jpg");
+    const texture =
+        useTexture("/textures/palmtrunk.jpg");
 
     const subdivisions =
         tree.subdivisions ?? 1;
@@ -19,29 +20,31 @@ function TreeModel() {
     const percentage =
         tree.randomPercentage ?? 0;
 
-        const coefficient =
-    tree.randomCoefficient ?? 1;
+    const coefficient =
+        tree.randomCoefficient ?? 1;
+
+    // 30 = le haut fait 70% du rayon
+    const trunkate =
+        tree.trunkate ?? 30;
 
     return (
-    <group
-    position={[
-        tree.move.x,
-        tree.move.y,
-        tree.move.z
-    ]}
-
-    rotation={[
-        tree.rotation.x * Math.PI / 180,
-        tree.rotation.y * Math.PI / 180,
-        tree.rotation.z * Math.PI / 180
-    ]}
-
-    scale={[
-        tree.scale.x,
-        tree.scale.y,
-        tree.scale.z
-    ]}
->
+        <group
+            position={[
+                tree.move.x,
+                tree.move.y,
+                tree.move.z
+            ]}
+            rotation={[
+                tree.rotation.x * Math.PI / 180,
+                tree.rotation.y * Math.PI / 180,
+                tree.rotation.z * Math.PI / 180
+            ]}
+            scale={[
+                tree.scale.x,
+                tree.scale.y,
+                tree.scale.z
+            ]}
+        >
 
             {Array.from(
                 { length: subdivisions },
@@ -53,23 +56,43 @@ function TreeModel() {
                         + index * segmentLength;
 
 
-                    // Est-ce que ce cylindre doit bouger ?
+                    // 0 = bas
+                    // 1 = haut
+                    const progress =
+                        index / subdivisions;
+
+
+                    // Rayon en bas du cylindre
+                    const bottomRadius =
+                        tree.trunkradius *
+                        (1 - (progress * trunkate / 100));
+
+
+                    // Rayon en haut du cylindre
+                    const topProgress =
+                        (index + 1) / subdivisions;
+
+                    const topRadius =
+                        tree.trunkradius *
+                        (1 - (topProgress * trunkate / 100));
+
+
+                    // Randomize
+
                     const random =
                         Math.random() * 100;
 
                     const shouldMove =
                         random < percentage;
 
-
-                    // Déplacement aléatoire
                     const x =
                         shouldMove
-                            ? (Math.random() - 0.5)* coefficient
+                            ? (Math.random() - 0.5) * coefficient
                             : 0;
 
                     const z =
                         shouldMove
-                            ? (Math.random() - 0.5)* coefficient
+                            ? (Math.random() - 0.5) * coefficient
                             : 0;
 
 
@@ -81,8 +104,8 @@ function TreeModel() {
 
                             <cylinderGeometry
                                 args={[
-                                    tree.trunkradius,
-                                    tree.trunkradius,
+                                    topRadius,
+                                    bottomRadius,
                                     segmentLength,
                                     32
                                 ]}
@@ -102,8 +125,6 @@ function TreeModel() {
     );
 }
 
-
-
 function Ground() {
 
     const gridTexture =
@@ -120,6 +141,7 @@ function Ground() {
 
 
     return (
+
         <mesh
             position={[0, 0, 0]}
         >
@@ -131,18 +153,18 @@ function Ground() {
             <meshStandardMaterial
                 map={gridTexture}
                 transparent={true}
-
             />
 
         </mesh>
+
     );
 }
-
 
 
 export default function Viewport3D() {
 
     return (
+
         <Canvas
             camera={{
                 position: [0, 2, 5]
@@ -164,5 +186,6 @@ export default function Viewport3D() {
             <OrbitControls />
 
         </Canvas>
+
     );
 }

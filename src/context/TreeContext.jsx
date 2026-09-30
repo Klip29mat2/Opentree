@@ -7,6 +7,7 @@ export function TreeProvider({ children }) {
     const [tree, setTree] = useState({
         trunklength: 50,
         trunkradius: 2,
+        trunkate: 30,
 
         rotation: {
             x: 0,
