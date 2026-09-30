@@ -23,20 +23,25 @@ function TreeModel() {
     tree.randomCoefficient ?? 1;
 
     return (
-        <group
+    <group
+    position={[
+        tree.move.x,
+        tree.move.y,
+        tree.move.z
+    ]}
 
-            rotation={[
-                tree.rotation.x * Math.PI / 180,
-                tree.rotation.y * Math.PI / 180,
-                tree.rotation.z * Math.PI / 180
-            ]}
+    rotation={[
+        tree.rotation.x * Math.PI / 180,
+        tree.rotation.y * Math.PI / 180,
+        tree.rotation.z * Math.PI / 180
+    ]}
 
-            scale={[
-                tree.scale.x,
-                tree.scale.y,
-                tree.scale.z
-            ]}
-        >
+    scale={[
+        tree.scale.x,
+        tree.scale.y,
+        tree.scale.z
+    ]}
+>
 
             {Array.from(
                 { length: subdivisions },

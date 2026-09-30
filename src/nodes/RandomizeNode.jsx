@@ -48,8 +48,11 @@ export default function RandomizeNode() {
 
             <input
                 type="number"
+                
                 min="0"
-                max="10"
+                max="100"
+                step="0.1"
+
                 value={tree.randomCoefficient ?? 1}
                 onChange={updateCoefficient}
             />

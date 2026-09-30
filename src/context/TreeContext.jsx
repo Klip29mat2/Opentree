@@ -18,6 +18,12 @@ export function TreeProvider({ children }) {
             x: 1,
             y: 1,
             z: 1
+        },
+
+        move: {
+            x: 0,
+            y: 25,
+            z: 0
         }
     });
 
