@@ -23,9 +23,56 @@ function TreeModel() {
     const coefficient =
         tree.randomCoefficient ?? 1;
 
-    // 30 = le haut fait 70% du rayon
     const trunkate =
         tree.trunkate ?? 30;
+
+
+    // On crée les points du tronc
+    const points = Array.from(
+        { length: subdivisions + 1 },
+        (_, index) => {
+
+            const y =
+                -tree.trunklength / 2
+                + index * segmentLength;
+
+
+            // Le premier point reste toujours droit
+            if (index === 0) {
+                return new THREE.Vector3(
+                    0,
+                    y,
+                    0
+                );
+            }
+
+
+            const random =
+                Math.random() * 100;
+
+            const shouldMove =
+                random < percentage;
+
+
+            const x =
+                shouldMove
+                    ? (Math.random() - 0.5) * coefficient
+                    : 0;
+
+            const z =
+                shouldMove
+                    ? (Math.random() - 0.5) * coefficient
+                    : 0;
+
+
+            return new THREE.Vector3(
+                x,
+                y,
+                z
+            );
+        }
+    );
+
 
     return (
         <group
@@ -50,63 +97,70 @@ function TreeModel() {
                 { length: subdivisions },
                 (_, index) => {
 
-                    const y =
-                        -tree.trunklength / 2
-                        + segmentLength / 2
-                        + index * segmentLength;
+                    const start =
+                        points[index];
+
+                    const end =
+                        points[index + 1];
 
 
-                    // 0 = bas
-                    // 1 = haut
+                    // Direction du cylindre
+                    const direction =
+                        end.clone().sub(start);
+
+
+                    // Longueur réelle entre les deux points
+                    const length =
+                        direction.length();
+
+
+                    // Milieu du cylindre
+                    const middle =
+                        start.clone()
+                            .add(end)
+                            .multiplyScalar(0.5);
+
+
+                    // Rayon du bas
                     const progress =
                         index / subdivisions;
 
-
-                    // Rayon en bas du cylindre
                     const bottomRadius =
                         tree.trunkradius *
-                        (1 - (progress * trunkate / 100));
+                        (1 - progress * trunkate / 100);
 
 
-                    // Rayon en haut du cylindre
+                    // Rayon du haut
                     const topProgress =
                         (index + 1) / subdivisions;
 
                     const topRadius =
                         tree.trunkradius *
-                        (1 - (topProgress * trunkate / 100));
+                        (1 - topProgress * trunkate / 100);
 
 
-                    // Randomize
+                    // Rotation pour orienter le cylindre
+                    const quaternion =
+                        new THREE.Quaternion();
 
-                    const random =
-                        Math.random() * 100;
-
-                    const shouldMove =
-                        random < percentage;
-
-                    const x =
-                        shouldMove
-                            ? (Math.random() - 0.5) * coefficient
-                            : 0;
-
-                    const z =
-                        shouldMove
-                            ? (Math.random() - 0.5) * coefficient
-                            : 0;
+                    quaternion.setFromUnitVectors(
+                        new THREE.Vector3(0, 1, 0),
+                        direction.normalize()
+                    );
 
 
                     return (
                         <mesh
                             key={index}
-                            position={[x, y, z]}
+                            position={middle}
+                            quaternion={quaternion}
                         >
 
                             <cylinderGeometry
                                 args={[
                                     topRadius,
                                     bottomRadius,
-                                    segmentLength,
+                                    length,
                                     32
                                 ]}
                             />
@@ -124,7 +178,6 @@ function TreeModel() {
         </group>
     );
 }
-
 function Ground() {
 
     const gridTexture =
