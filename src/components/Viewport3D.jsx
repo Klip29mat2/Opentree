@@ -1,3 +1,4 @@
+import { useMemo } from "react";
 import { Canvas } from "@react-three/fiber";
 import { OrbitControls, useTexture } from "@react-three/drei";
 import { useTree } from "../context/TreeContext.jsx";
@@ -27,28 +28,36 @@ function TreeModel() {
         tree.trunkate ?? 30;
 
 
-    // On crée les points du tronc
-    const points = Array.from(
-        { length: subdivisions + 1 },
-        (_, index) => {
+    // Génération aléatoire stable
+    const points = useMemo(() => {
+
+        const generatedPoints = [];
+
+        for (let index = 0; index <= subdivisions; index++) {
 
             const y =
                 -tree.trunklength / 2
                 + index * segmentLength;
 
 
-            // Le premier point reste toujours droit
+            // Premier point toujours au centre
             if (index === 0) {
-                return new THREE.Vector3(
-                    0,
-                    y,
-                    0
+
+                generatedPoints.push(
+                    new THREE.Vector3(
+                        0,
+                        y,
+                        0
+                    )
                 );
+
+                continue;
             }
 
 
             const random =
                 Math.random() * 100;
+
 
             const shouldMove =
                 random < percentage;
@@ -59,19 +68,31 @@ function TreeModel() {
                     ? (Math.random() - 0.5) * coefficient
                     : 0;
 
+
             const z =
                 shouldMove
                     ? (Math.random() - 0.5) * coefficient
                     : 0;
 
 
-            return new THREE.Vector3(
-                x,
-                y,
-                z
+            generatedPoints.push(
+                new THREE.Vector3(
+                    x,
+                    y,
+                    z
+                )
             );
         }
-    );
+
+
+        return generatedPoints;
+
+    }, [
+        subdivisions,
+        tree.trunklength,
+        percentage,
+        coefficient
+    ]);
 
 
     return (
@@ -104,48 +125,94 @@ function TreeModel() {
                         points[index + 1];
 
 
-                    // Direction du cylindre
+                    if (!start || !end) {
+                        return null;
+                    }
+
+
+                    // Direction du segment
                     const direction =
                         end.clone().sub(start);
 
 
-                    // Longueur réelle entre les deux points
                     const length =
                         direction.length();
 
 
-                    // Milieu du cylindre
+                    if (length === 0) {
+                        return null;
+                    }
+
+
+                    // Direction normalisée
+                    const normalizedDirection =
+                        direction
+                            .clone()
+                            .divideScalar(length);
+
+
+                    // Longueur minimale
+                    const finalLength =
+                        Math.max(
+                            length,
+                            segmentLength
+                        );
+
+
+                    // Nouveau point de fin
+                    const finalEnd =
+                        start.clone().add(
+                            normalizedDirection
+                                .clone()
+                                .multiplyScalar(finalLength)
+                        );
+
+
+                    // Centre du cylindre
                     const middle =
                         start.clone()
-                            .add(end)
+                            .add(finalEnd)
                             .multiplyScalar(0.5);
 
 
-                    // Rayon du bas
+                    // Taper du bas
                     const progress =
                         index / subdivisions;
 
+
                     const bottomRadius =
                         tree.trunkradius *
-                        (1 - progress * trunkate / 100);
+                        (
+                            1 -
+                            progress *
+                            trunkate /
+                            100
+                        );
 
 
-                    // Rayon du haut
+                    // Taper du haut
                     const topProgress =
                         (index + 1) / subdivisions;
 
+
                     const topRadius =
                         tree.trunkradius *
-                        (1 - topProgress * trunkate / 100);
+                        (
+                            1 -
+                            topProgress *
+                            trunkate /
+                            100
+                        );
 
 
-                    // Rotation pour orienter le cylindre
+                    // Rotation du cylindre
                     const quaternion =
                         new THREE.Quaternion();
 
+
                     quaternion.setFromUnitVectors(
                         new THREE.Vector3(0, 1, 0),
-                        direction.normalize()
+                        normalizedDirection
                     );
 
 
@@ -160,7 +227,7 @@ function TreeModel() {
                                 args={[
                                     topRadius,
                                     bottomRadius,
-                                    length,
+                                    finalLength,
                                     32
                                 ]}
                             />
@@ -178,6 +245,8 @@ function TreeModel() {
         </group>
     );
 }
+
+
 function Ground() {
 
     const gridTexture =
@@ -194,7 +263,6 @@ function Ground() {
 
 
     return (
-
         <mesh
             position={[0, 0, 0]}
         >
@@ -209,7 +277,6 @@ function Ground() {
             />
 
         </mesh>
-
     );
 }
 
@@ -217,16 +284,13 @@ function Ground() {
 export default function Viewport3D() {
 
     return (
-
         <Canvas
             camera={{
                 position: [0, 2, 5]
             }}
         >
 
-            <ambientLight
-                intensity={1}
-            />
+            <ambientLight intensity={1} />
 
             <directionalLight
                 position={[5, 5, 5]}
@@ -239,6 +303,5 @@ export default function Viewport3D() {
             <OrbitControls />
 
         </Canvas>
-
     );
 }
