@@ -4,7 +4,81 @@ import { OrbitControls, useTexture } from "@react-three/drei";
 import { useTree } from "../context/TreeContext.jsx";
 import * as THREE from "three";
 
-function BranchMeshes({ tree, points, texture }) {
+function createTubeGeometry(curve, radiusAt, tubularSegments, radialSegments, radialNoise = 0) {
+    const frames = curve.computeFrenetFrames(tubularSegments, false);
+    const length = curve.getLength();
+    const positions = [];
+    const uvs = [];
+    const indices = [];
+
+    for (let ring = 0; ring <= tubularSegments; ring += 1) {
+        const progress = ring / tubularSegments;
+        const center = curve.getPointAt(progress);
+        const radius = radiusAt(progress);
+        for (let side = 0; side <= radialSegments; side += 1) {
+            const around = side / radialSegments * Math.PI * 2;
+            const wobble = 1 + radialNoise * (Math.sin(around * 3 + ring * 0.19) + Math.sin(around * 7 - ring * 0.11)) * 0.5;
+            const normal = frames.normals[ring].clone().multiplyScalar(-Math.cos(around))
+                .addScaledVector(frames.binormals[ring], Math.sin(around));
+            const vertex = center.clone().addScaledVector(normal, radius * wobble);
+            positions.push(vertex.x, vertex.y, vertex.z);
+            uvs.push(side / radialSegments, progress * length / 6);
+        }
+    }
+
+    for (let ring = 0; ring < tubularSegments; ring += 1) {
+        for (let side = 0; side < radialSegments; side += 1) {
+            const a = ring * (radialSegments + 1) + side;
+            const b = a + radialSegments + 1;
+            indices.push(a, b, a + 1, b, b + 1, a + 1);
+        }
+    }
+
+    const addCap = (ring, isTop) => {
+        const progress = ring / tubularSegments;
+        const center = curve.getPointAt(progress);
+        const centerIndex = positions.length / 3;
+        positions.push(center.x, center.y, center.z);
+        uvs.push(0.5, 0.5);
+        const rimStart = positions.length / 3;
+        const radius = radiusAt(progress);
+        for (let side = 0; side < radialSegments; side += 1) {
+            const around = side / radialSegments * Math.PI * 2;
+            const normal = frames.normals[ring].clone().multiplyScalar(-Math.cos(around))
+                .addScaledVector(frames.binormals[ring], Math.sin(around));
+            const wobble = 1 + radialNoise * (Math.sin(around * 3 + ring * 0.19) + Math.sin(around * 7 - ring * 0.11)) * 0.5;
+            const vertex = center.clone().addScaledVector(normal, radius * wobble);
+            positions.push(vertex.x, vertex.y, vertex.z);
+            uvs.push(0.5 + Math.cos(around) * 0.5, 0.5 + Math.sin(around) * 0.5);
+        }
+        for (let side = 0; side < radialSegments; side += 1) {
+            const current = rimStart + side;
+            const next = rimStart + (side + 1) % radialSegments;
+            if (isTop) indices.push(centerIndex, next, current);
+            else indices.push(centerIndex, current, next);
+        }
+    };
+    addCap(0, false);
+    addCap(tubularSegments, true);
+
+    const geometry = new THREE.BufferGeometry();
+    geometry.setAttribute("position", new THREE.Float32BufferAttribute(positions, 3));
+    geometry.setAttribute("uv", new THREE.Float32BufferAttribute(uvs, 2));
+    geometry.setIndex(indices);
+    geometry.computeVertexNormals();
+    return geometry;
+}
+
+function getTrunkFrame(curve, progress, angle) {
+    const tangent = curve.getTangentAt(progress).normalize();
+    const reference = Math.abs(tangent.y) > 0.95 ? new THREE.Vector3(1, 0, 0) : new THREE.Vector3(0, 1, 0);
+    const axisA = reference.addScaledVector(tangent, -reference.dot(tangent)).normalize();
+    const axisB = tangent.clone().cross(axisA).normalize();
+    const radial = axisA.multiplyScalar(Math.cos(angle)).addScaledVector(axisB, Math.sin(angle)).normalize();
+    return { center: curve.getPointAt(progress), tangent, radial };
+}
+
+function BranchMeshes({ tree, curve, texture }) {
     const branches = tree.branches ?? [];
     const meshes = useMemo(() => {
         let state = ((Number(tree.seed) >>> 0) ^ 0x9e3779b9) || 1;
@@ -15,7 +89,6 @@ function BranchMeshes({ tree, points, texture }) {
             return (state >>> 0) / 4294967296;
         };
         const result = [];
-        const divisions = points.length - 1;
         const goldenAngle = Math.PI * (3 - Math.sqrt(5));
 
         branches.forEach((config, configIndex) => {
@@ -25,48 +98,42 @@ function BranchMeshes({ tree, points, texture }) {
 
             for (let index = 0; index < count && result.length < 300; index += 1) {
                 const progress = startHeight + (0.92 - startHeight) * ((index + 1) / (count + 1));
-                const segment = Math.min(divisions - 1, Math.floor(progress * divisions));
-                const segmentProgress = progress * divisions - segment;
-                const center = points[segment].clone().lerp(points[segment + 1], segmentProgress);
                 const around = phase + (index + configIndex * 0.5) * goldenAngle;
-                const radial = new THREE.Vector3(Math.cos(around), 0, Math.sin(around));
+                const { center, tangent, radial } = getTrunkFrame(curve, progress, around);
                 const trunkRadius = tree.trunkradius * (1 - progress * (tree.trunkate ?? 30) / 100);
                 const start = center.clone().addScaledVector(radial, trunkRadius * 0.92);
                 const angle = THREE.MathUtils.degToRad(Number(config.angle) + (random() - 0.5) * 8);
-                const direction = new THREE.Vector3(
-                    radial.x * Math.cos(angle),
-                    Math.sin(angle),
-                    radial.z * Math.cos(angle),
-                ).normalize();
+                const direction = radial.clone().multiplyScalar(Math.cos(angle)).addScaledVector(tangent, Math.sin(angle)).normalize();
                 const length = Number(config.length) * (0.88 + random() * 0.24);
-                const middle = start.clone().addScaledVector(direction, length / 2);
-                const quaternion = new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 1, 0), direction);
+                const end = start.clone().addScaledVector(direction, length);
+                const branchCurve = new THREE.CatmullRomCurve3([
+                    start,
+                    start.clone().addScaledVector(direction, length * 0.32).addScaledVector(tangent, length * 0.09),
+                    start.clone().addScaledVector(direction, length * 0.72).addScaledVector(tangent, length * 0.04),
+                    end,
+                ]);
+                const geometry = createTubeGeometry(branchCurve, (t) => Number(config.radius) * (1 - t * 0.9), 14, 9, 0.025);
 
                 result.push({
                     key: `${configIndex}-${index}`,
-                    position: middle,
-                    quaternion,
-                    length,
-                    radius: Number(config.radius),
+                    geometry,
                 });
             }
         });
         return result;
-    }, [branches, points, tree.seed, tree.trunklength, tree.trunkradius, tree.trunkate]);
+    }, [branches, curve, tree.seed, tree.trunkradius, tree.trunkate]);
 
     return meshes.map((branch) => (
-        <mesh key={branch.key} position={branch.position} quaternion={branch.quaternion}>
-            <cylinderGeometry args={[branch.radius * 0.12, branch.radius, branch.length, 10]} />
+        <mesh key={branch.key} geometry={branch.geometry} castShadow receiveShadow>
             <meshStandardMaterial map={texture} />
         </mesh>
     ));
 }
 
-function CoconutMeshes({ tree, points }) {
+function CoconutMeshes({ tree, curve }) {
     const clusters = tree.coconuts ?? [];
     const fruits = useMemo(() => {
         const result = [];
-        const divisions = points.length - 1;
         const goldenAngle = Math.PI * (3 - Math.sqrt(5));
 
         clusters.forEach((cluster, clusterIndex) => {
@@ -77,16 +144,13 @@ function CoconutMeshes({ tree, points }) {
 
             for (let index = 0; index < count && result.length < 100; index += 1) {
                 const around = phase + index * goldenAngle;
-                const radial = new THREE.Vector3(Math.cos(around), 0, Math.sin(around));
                 const progress = Math.min(0.99, Math.max(0.5, height + (index - (count - 1) / 2) * 0.012));
-                const segment = Math.min(divisions - 1, Math.floor(progress * divisions));
-                const segmentProgress = progress * divisions - segment;
-                const center = points[segment].clone().lerp(points[segment + 1], segmentProgress);
+                const { center, tangent, radial } = getTrunkFrame(curve, progress, around);
                 const trunkRadius = tree.trunkradius * (1 - progress * (tree.trunkate ?? 30) / 100);
                 const position = center
                     .addScaledVector(radial, trunkRadius * 0.7 + size * 0.32)
                     .add(new THREE.Vector3(0, Math.sin(index * 2.1) * size * 0.16, 0));
-                const longAxis = new THREE.Vector3(radial.x * 0.55, 0.72, radial.z * 0.55).normalize();
+                const longAxis = radial.clone().multiplyScalar(0.55).addScaledVector(tangent, 0.72).normalize();
                 const quaternion = new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 1, 0), longAxis);
                 const color = cluster.color === "yellow" ? "#efc84b" : "#704329";
 
@@ -100,10 +164,10 @@ function CoconutMeshes({ tree, points }) {
             }
         });
         return result;
-    }, [clusters, points, tree.seed, tree.trunkradius, tree.trunkate]);
+    }, [clusters, curve, tree.seed, tree.trunkradius, tree.trunkate]);
 
     return fruits.map((fruit) => (
-        <mesh key={fruit.key} position={fruit.position} quaternion={fruit.quaternion} scale={[fruit.size * 0.58, fruit.size * 0.78, fruit.size * 0.58]}>
+        <mesh key={fruit.key} position={fruit.position} quaternion={fruit.quaternion} scale={[fruit.size * 0.58, fruit.size * 0.78, fruit.size * 0.58]} castShadow receiveShadow>
             <sphereGeometry args={[1, 20, 16]} />
             <meshStandardMaterial color={fruit.color} roughness={0.88} />
         </mesh>
@@ -112,14 +176,18 @@ function CoconutMeshes({ tree, points }) {
 
 function createFrondGeometry(config) {
     const vertices = [];
+    const colors = [];
     const indices = [];
-    const addStrip = (centers, axes, widths) => {
+    const addStrip = (centers, axes, widths, color = new THREE.Color("#ffffff")) => {
         const first = vertices.length / 3;
         centers.forEach((center, index) => {
             const offset = axes[index].clone().multiplyScalar(widths[index]);
             const left = center.clone().sub(offset);
             const right = center.clone().add(offset);
             vertices.push(left.x, left.y, left.z, right.x, right.y, right.z);
+            const shade = 0.94 + index / Math.max(1, centers.length - 1) * 0.1;
+            colors.push(color.r * shade, color.g * shade, color.b * shade,
+                color.r * shade, color.g * shade, color.b * shade);
         });
         for (let index = 0; index < centers.length - 1; index += 1) {
             const a = first + index * 2;
@@ -148,62 +216,80 @@ function createFrondGeometry(config) {
     }
     addStrip(rachisCenters, rachisAxes, rachisWidths);
 
-    for (let index = 1; index <= 17; index += 1) {
-        const progress = 0.12 + index * 0.046;
+    for (let index = 1; index <= 20; index += 1) {
+        const progress = 0.1 + index * 0.041;
         const base = rachisPoint(progress);
-        const leafletLength = length * 0.28 * (1 - progress * 0.48);
+        const leafletLength = length * 0.3 * (1 - progress * 0.58);
         for (const side of [-1, 1]) {
-            const middle = base.clone().add(new THREE.Vector3(leafletLength * 0.08, -leafletLength * 0.1, side * leafletLength * 0.55));
-            const tip = base.clone().add(new THREE.Vector3(leafletLength * 0.2, -leafletLength * (0.22 + droop * 0.18), side * leafletLength));
-            const centers = [base, middle, tip];
-            const axes = centers.map(() => new THREE.Vector3(-side * 0.2, 0.96, -0.18).normalize());
-            const width = config.width * (1 - progress * 0.5);
-            addStrip(centers, axes, [0, width, 0]);
+            const sweep = 0.1 + (index % 4) * 0.018;
+            const centers = [0, 0.25, 0.5, 0.76, 1].map((t) => base.clone().add(new THREE.Vector3(
+                leafletLength * (0.12 * t + sweep * t * t),
+                -leafletLength * (0.08 * t + (0.18 + droop * 0.2) * t * t),
+                side * leafletLength * t,
+            )));
+            const axes = centers.map((_, station) => new THREE.Vector3(
+                -side * (0.12 + station * 0.025),
+                0.97,
+                -0.18 - station * 0.025,
+            ).normalize());
+            const width = config.width * (1 - progress * 0.48) * (0.78 + (index % 3) * 0.08);
+            const color = new THREE.Color(config.leafColors[(index + (side > 0 ? 1 : 0)) % config.leafColors.length]);
+            addStrip(centers, axes, [0, width * 0.62, width, width * 0.58, 0], color);
         }
     }
 
     const geometry = new THREE.BufferGeometry();
     geometry.setAttribute("position", new THREE.Float32BufferAttribute(vertices, 3));
+    geometry.setAttribute("color", new THREE.Float32BufferAttribute(colors, 3));
     geometry.setIndex(indices);
     geometry.computeVertexNormals();
     return geometry;
 }
 
-function LeafMeshes({ tree, points }) {
+function LeafMeshes({ tree, curve }) {
     const configs = tree.leaves ?? [];
     const fronds = useMemo(() => {
         const result = [];
-        const divisions = points.length - 1;
         const colors = { green: "#286b35", lime: "#64a83c", yellow: "#a7a83d" };
+        let state = ((Number(tree.seed) >>> 0) ^ 0x85ebca6b) || 1;
+        const random = () => {
+            state ^= state << 13;
+            state ^= state >>> 17;
+            state ^= state << 5;
+            return (state >>> 0) / 4294967296;
+        };
         configs.forEach((config, configIndex) => {
             const count = Math.min(24, Math.max(1, Math.floor(Number(config.count) || 1)));
             const height = Math.min(0.99, Math.max(0.65, Number(config.height) || 0.94));
-            const phase = ((Number(tree.seed) || 1) * 0.754877666 + configIndex * 1.13) % (Math.PI * 2);
-            const geometry = createFrondGeometry({
-                length: Number(config.length) || 18,
-                width: Number(config.width) || 0.55,
-                droop: Number(config.droop) || 0,
-            });
+            const phase = random() * Math.PI * 2 + configIndex * 1.13;
+            const leafColors = [colors[config.color] ?? colors.green, "#397b3d", "#4a8540"];
             for (let index = 0; index < count && result.length < 80; index += 1) {
-                const progress = Math.min(0.99, height + (index - (count - 1) / 2) * 0.006);
-                const segment = Math.min(divisions - 1, Math.floor(progress * divisions));
-                const segmentProgress = progress * divisions - segment;
-                const position = points[segment].clone().lerp(points[segment + 1], segmentProgress);
+                const progress = Math.min(0.99, Math.max(0.65, height + (index - (count - 1) / 2) * 0.012 + (random() - 0.5) * 0.018));
+                const around = phase + index * 2.399963229728653 + (random() - 0.5) * 0.26;
+                const { center: position, tangent, radial } = getTrunkFrame(curve, progress, around);
+                const geometry = createFrondGeometry({
+                    length: (Number(config.length) || 18) * (0.84 + random() * 0.32),
+                    width: Number(config.width) || 0.55,
+                    droop: Math.max(0, (Number(config.droop) || 0) + (random() - 0.5) * 0.24),
+                    leafColors,
+                });
+                const side = radial.clone().cross(tangent).normalize();
+                const orientation = new THREE.Matrix4().makeBasis(radial, tangent, side);
+                const rotation = new THREE.Quaternion().setFromRotationMatrix(orientation);
                 result.push({
                     key: `${configIndex}-${index}`,
                     geometry,
                     position,
-                    rotation: phase + index * Math.PI * 2 / count,
-                    color: colors[config.color] ?? colors.green,
+                    rotation,
                 });
             }
         });
         return result;
-    }, [configs, points, tree.seed]);
+    }, [configs, curve, tree.seed]);
 
     return fronds.map((frond) => (
-        <mesh key={frond.key} geometry={frond.geometry} position={frond.position} rotation={[0, frond.rotation, 0]}>
-            <meshStandardMaterial color={frond.color} side={THREE.DoubleSide} roughness={0.9} />
+        <mesh key={frond.key} geometry={frond.geometry} position={frond.position} quaternion={frond.rotation} castShadow>
+            <meshStandardMaterial vertexColors side={THREE.DoubleSide} roughness={0.88} />
         </mesh>
     ));
 }
@@ -229,6 +315,15 @@ function TreeModel() {
 
     const trunkate =
         tree.trunkate ?? 30;
+
+    const barkTexture = useMemo(() => {
+        texture.wrapS = THREE.RepeatWrapping;
+        texture.wrapT = THREE.RepeatWrapping;
+        texture.repeat.set(2, 1);
+        texture.colorSpace = THREE.SRGBColorSpace;
+        texture.needsUpdate = true;
+        return texture;
+    }, [texture]);
 
 
     // Génération aléatoire stable
@@ -306,6 +401,18 @@ function TreeModel() {
         tree.seed
     ]);
 
+    const trunkCurve = useMemo(
+        () => new THREE.CatmullRomCurve3(points, false, "centripetal", 0.5),
+        [points],
+    );
+    const trunkGeometry = useMemo(() => createTubeGeometry(
+        trunkCurve,
+        (progress) => tree.trunkradius * (1 - progress * trunkate / 100) * (1 + 0.12 * Math.exp(-progress * 18)),
+        Math.max(64, Math.min(512, subdivisions * 8)),
+        24,
+        0.008,
+    ), [trunkCurve, tree.trunkradius, trunkate, subdivisions]);
+
 
     return (
         <group
@@ -326,137 +433,13 @@ function TreeModel() {
             ]}
         >
 
-            {Array.from(
-                { length: subdivisions },
-                (_, index) => {
+            <mesh geometry={trunkGeometry} castShadow receiveShadow>
+                <meshStandardMaterial map={barkTexture} roughness={0.88} />
+            </mesh>
 
-                    const start =
-                        points[index];
-
-                    const end =
-                        points[index + 1];
-
-
-                    if (!start || !end) {
-                        return null;
-                    }
-
-
-                    // Direction du segment
-                    const direction =
-                        end.clone().sub(start);
-
-
-                    const length =
-                        direction.length();
-
-
-                    if (length === 0) {
-                        return null;
-                    }
-
-
-                    // Direction normalisée
-                    const normalizedDirection =
-                        direction
-                            .clone()
-                            .divideScalar(length);
-
-
-                    // Longueur minimale
-                    const finalLength =
-                        Math.max(
-                            length,
-                            segmentLength
-                        );
-
-
-                    // Nouveau point de fin
-                    const finalEnd =
-                        start.clone().add(
-                            normalizedDirection
-                                .clone()
-                                .multiplyScalar(finalLength)
-                        );
-
-
-                    // Centre du cylindre
-                    const middle =
-                        start.clone()
-                            .add(finalEnd)
-                            .multiplyScalar(0.5);
-
-
-                    // Taper du bas
-                    const progress =
-                        index / subdivisions;
-
-
-                    const bottomRadius =
-                        tree.trunkradius *
-                        (
-                            1 -
-                            progress *
-                            trunkate /
-                            100
-                        );
-
-
-                    // Taper du haut
-                    const topProgress =
-                        (index + 1) / subdivisions;
-
-
-                    const topRadius =
-                        tree.trunkradius *
-                        (
-                            1 -
-                            topProgress *
-                            trunkate /
-                            100
-                        );
-
-
-                    // Rotation du cylindre
-                    const quaternion =
-                        new THREE.Quaternion();
-
-
-                    quaternion.setFromUnitVectors(
-                        new THREE.Vector3(0, 1, 0),
-                        normalizedDirection
-                    );
-
-
-                    return (
-                        <mesh
-                            key={index}
-                            position={middle}
-                            quaternion={quaternion}
-                        >
-
-                            <cylinderGeometry
-                                args={[
-                                    topRadius,
-                                    bottomRadius,
-                                    finalLength,
-                                    32
-                                ]}
-                            />
-
-                            <meshStandardMaterial
-                                map={texture}
-                            />
-
-                        </mesh>
-                    );
-
-                }
-            )}
-
-            <BranchMeshes tree={tree} points={points} texture={texture} />
-            <CoconutMeshes tree={tree} points={points} />
-            <LeafMeshes tree={tree} points={points} />
+            <BranchMeshes tree={tree} curve={trunkCurve} texture={barkTexture} />
+            <CoconutMeshes tree={tree} curve={trunkCurve} />
+            <LeafMeshes tree={tree} curve={trunkCurve} />
 
         </group>
     );
@@ -481,6 +464,7 @@ function Ground() {
     return (
         <mesh
             position={[0, 0, 0]}
+            receiveShadow
         >
 
             <boxGeometry
@@ -502,22 +486,38 @@ export default function Viewport3D() {
     return (
         <Canvas
             className="viewport-canvas"
+            shadows
             camera={{
-                position: [0, 2, 5]
+                position: [42, 34, 62],
+                fov: 42,
+                near: 0.1,
+                far: 300,
             }}
         >
 
-            <ambientLight intensity={1} />
+            <hemisphereLight args={["#dcebd8", "#30271e", 0.8]} />
 
             <directionalLight
-                position={[5, 5, 5]}
+                position={[-25, 55, 30]}
+                intensity={2.2}
+                castShadow
+                shadow-mapSize-width={2048}
+                shadow-mapSize-height={2048}
+                shadow-camera-left={-65}
+                shadow-camera-right={65}
+                shadow-camera-top={75}
+                shadow-camera-bottom={-65}
+                shadow-camera-far={180}
+                shadow-bias={-0.0002}
             />
+
+            <directionalLight position={[30, 24, -35]} intensity={0.55} />
 
             <TreeModel />
 
             <Ground />
 
-            <OrbitControls />
+            <OrbitControls target={[0, 25, 0]} minDistance={12} maxDistance={220} />
 
         </Canvas>
     );
