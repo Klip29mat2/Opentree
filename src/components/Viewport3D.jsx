@@ -1,8 +1,9 @@
-import { useMemo } from "react";
+import { useEffect, useMemo, useRef } from "react";
 import { Canvas } from "@react-three/fiber";
 import { OrbitControls, useTexture } from "@react-three/drei";
 import { useTree } from "../context/TreeContext.jsx";
 import * as THREE from "three";
+import { GLTFExporter } from "three/examples/jsm/exporters/GLTFExporter.js";
 
 function createTubeGeometry(curve, radiusAt, tubularSegments, radialSegments, radialNoise = 0) {
     const frames = curve.computeFrenetFrames(tubularSegments, false);
@@ -294,7 +295,7 @@ function LeafMeshes({ tree, curve }) {
     ));
 }
 
-function TreeModel() {
+function TreeModel({ treeRef }) {
 
     const { tree } = useTree();
 
@@ -416,6 +417,8 @@ function TreeModel() {
 
     return (
         <group
+            ref={treeRef}
+            name="OpenTree"
             position={[
                 tree.move.x,
                 tree.move.y,
@@ -443,6 +446,33 @@ function TreeModel() {
 
         </group>
     );
+}
+
+function GLBExportBridge({ treeRef, onReady }) {
+    useEffect(() => {
+        onReady(async (filename) => {
+            if (!treeRef.current) throw new Error("L’arbre n’est pas encore prêt à être exporté.");
+
+            const exporter = new GLTFExporter();
+            const root = treeRef.current.clone(true);
+            root.name = "OpenTree";
+            const glb = await exporter.parseAsync(root, {
+                binary: true,
+                onlyVisible: true,
+                trs: false,
+            });
+            const blob = new Blob([glb], { type: "model/gltf-binary" });
+            const url = URL.createObjectURL(blob);
+            const link = document.createElement("a");
+            link.href = url;
+            link.download = filename || "opentree.glb";
+            link.click();
+            window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+        });
+        return () => onReady(null);
+    }, [onReady, treeRef]);
+
+    return null;
 }
 
 
@@ -481,7 +511,8 @@ function Ground() {
 }
 
 
-export default function Viewport3D() {
+export default function Viewport3D({ onExportReady }) {
+    const treeRef = useRef(null);
 
     return (
         <Canvas
@@ -513,7 +544,8 @@ export default function Viewport3D() {
 
             <directionalLight position={[30, 24, -35]} intensity={0.55} />
 
-            <TreeModel />
+            <TreeModel treeRef={treeRef} />
+            <GLBExportBridge treeRef={treeRef} onReady={onExportReady} />
 
             <Ground />
 

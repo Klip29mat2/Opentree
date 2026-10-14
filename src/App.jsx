@@ -17,11 +17,15 @@ export default function App() {
     const [menu, setMenu] = useState(null);
     const [projectPath, setProjectPath] = useState(null);
     const [saveStatus, setSaveStatus] = useState("saved");
+    const [fileMenuOpen, setFileMenuOpen] = useState(false);
+    const [exportStatus, setExportStatus] = useState("");
+    const [exportGLB, setExportGLB] = useState(null);
     const saveQueue = useRef(Promise.resolve());
     const saveRevision = useRef(0);
     const { setTree } = useTree();
     const compiler = useMemo(() => new TreeCompiler(), []);
     const compiled = useMemo(() => compiler.compile(nodes, edges), [compiler, nodes, edges]);
+    const registerGLBExporter = useCallback((exporter) => setExportGLB(() => exporter), []);
 
     const updateNodeData = useCallback((id, data) => setNodes((current) => current.map((node) => node.id === id ? { ...node, data } : node)), []);
     const removeNode = useCallback((id) => {
@@ -81,6 +85,24 @@ export default function App() {
         });
     }, [projectPath, screen, nodes, edges]);
 
+    const exportTree = useCallback(async () => {
+        if (!exportGLB) {
+            setExportStatus("3D view is still loading");
+            return;
+        }
+        setFileMenuOpen(false);
+        setExportStatus("Exporting GLB…");
+        const projectName = projectPath?.split(/[\\/]/).at(-1).replace(/\.opentree$/i, "");
+        try {
+            await exportGLB(`${projectName || "opentree"}.glb`);
+            setExportStatus("GLB exported");
+            window.setTimeout(() => setExportStatus(""), 3000);
+        } catch (error) {
+            console.error("Impossible d’exporter le modèle GLB :", error);
+            setExportStatus("GLB export failed");
+        }
+    }, [exportGLB, projectPath]);
+
     useEffect(() => {
         if (!projectPath || screen !== "editor") return undefined;
         setSaveStatus("pending");
@@ -109,11 +131,20 @@ export default function App() {
 
     if (screen === "home") return <StartMenu newProject={newProject} openProject={openProject} />;
     return <div className="editor-shell">
-        <Viewport3D />
+        <Viewport3D onExportReady={registerGLBExporter} />
         <ReactFlow className="graph-pane" nodes={graphNodes} edges={edges} nodeTypes={nodeTypes} onNodesChange={onNodesChange} onEdgesChange={onEdgesChange} onConnect={onConnect} deleteKeyCode={["Backspace", "Delete"]} fitView colorMode="dark">
             <Background color="#333" /><Controls />
         </ReactFlow>
-        <div className="editor-toolbar"><div className="editor-brand"><span>✳</span> OpenTree</div><div className="editor-status">{saveStatus === "saving" ? "Saving…" : saveStatus === "pending" ? "Changes pending…" : saveStatus === "error" ? "Save failed" : "Autosaved"}</div></div>
+        <div className="editor-toolbar">
+            <div className="editor-brand"><span>✳</span> OpenTree</div>
+            <div className="file-menu-wrap">
+                <button className="file-menu-trigger" aria-haspopup="menu" aria-expanded={fileMenuOpen} onClick={() => setFileMenuOpen((open) => !open)}>File <span>⌄</span></button>
+                {fileMenuOpen && <div className="file-menu" role="menu">
+                    <button role="menuitem" onClick={exportTree}><span>⇧</span><span>Export as GLB<small>Binary glTF · .glb</small></span></button>
+                </div>}
+            </div>
+            <div className="editor-status">{exportStatus || (saveStatus === "saving" ? "Saving…" : saveStatus === "pending" ? "Changes pending…" : saveStatus === "error" ? "Save failed" : "Autosaved")}</div>
+        </div>
         <button className="save-button" onClick={saveProject}><span>◉</span> Save project</button>
         {compiled.errors.length > 0 && <div className="graph-error">{compiled.errors.join(" ")}</div>}
         <NodeContextMenu menu={menu} createNode={createNode} />

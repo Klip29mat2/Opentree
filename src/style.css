@@ -73,6 +73,15 @@ button { color: inherit; }
 .editor-toolbar { position: absolute; z-index: 8; top: 14px; left: 15px; display: flex; align-items: center; gap: 10px; pointer-events: none; }
 .editor-brand { display: flex; align-items: center; gap: 8px; padding: 8px 11px; color: #dfe9e0; border: 1px solid rgba(176,207,183,.14); border-radius: 8px; background: rgba(12,18,15,.82); box-shadow: 0 8px 24px rgba(0,0,0,.18); backdrop-filter: blur(12px); font: 600 12px 'Space Grotesk', sans-serif; }
 .editor-brand span { color: var(--green); font-size: 16px; }
+.file-menu-wrap { position: relative; pointer-events: auto; }
+.file-menu-trigger { display: flex; align-items: center; gap: 9px; padding: 8px 11px; border: 1px solid rgba(176,207,183,.14); border-radius: 8px; color: #cbd8ce; background: rgba(12,18,15,.82); box-shadow: 0 8px 24px rgba(0,0,0,.18); backdrop-filter: blur(12px); cursor: pointer; font-size: 12px; transition: border-color .16s ease, background .16s ease; }
+.file-menu-trigger:hover, .file-menu-trigger[aria-expanded="true"] { border-color: rgba(145,201,154,.38); color: #eff7f0; background: #17231b; }
+.file-menu-trigger span { color: #829188; font-size: 14px; }
+.file-menu { position: absolute; top: calc(100% + 7px); left: 0; width: 210px; padding: 6px; border: 1px solid rgba(177,207,185,.17); border-radius: 9px; background: rgba(17,25,21,.97); box-shadow: 0 16px 38px rgba(0,0,0,.42); backdrop-filter: blur(15px); }
+.file-menu button { display: flex; align-items: flex-start; width: 100%; gap: 10px; padding: 9px; border: 0; border-radius: 6px; color: #dce8de; background: transparent; cursor: pointer; text-align: left; font-size: 12px; }
+.file-menu button:hover, .file-menu button:focus-visible { outline: 0; color: #f0f7f1; background: rgba(145,201,154,.12); }
+.file-menu button > span:first-child { color: var(--green); font-size: 16px; }
+.file-menu small { display: block; margin-top: 3px; color: #829188; font: 9px 'DM Mono', monospace; }
 .editor-status { color: #8da093; font: 9px 'DM Mono', monospace; letter-spacing: .1em; text-transform: uppercase; }
 .save-button { position: absolute; z-index: 10; top: 14px; right: 15px; display: flex; align-items: center; gap: 8px; padding: 9px 14px; border: 1px solid rgba(145,201,154,.38); border-radius: 8px; color: #d9eddb; background: rgba(36,70,43,.82); box-shadow: 0 8px 24px rgba(0,0,0,.18); cursor: pointer; font-size: 12px; font-weight: 600; transition: background .18s ease, transform .18s ease; }
 .save-button:hover { transform: translateY(-1px); background: #315e39; }
