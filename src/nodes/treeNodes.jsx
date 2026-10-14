@@ -1,6 +1,6 @@
 import ParameterNode from "./ParameterNode.jsx";
 
-export const nodeTypes = Object.fromEntries(["seed", "trunk", "branch", "leaf", "rotate", "scale", "subdivide", "randomize", "move", "trunkate", "output"].map((type) => [type, ParameterNode]));
+export const nodeTypes = Object.fromEntries(["seed", "trunk", "branch", "coconut", "leaf", "rotate", "scale", "subdivide", "randomize", "move", "trunkate", "output"].map((type) => [type, ParameterNode]));
 const initial = [
     ["seed", { x: 80, y: 180 }, { seed: 1 }],
     ["trunk", { x: 300, y: 180 }, { trunklength: 50, trunkradius: 2 }],

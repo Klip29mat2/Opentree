@@ -1,6 +1,6 @@
 const options = [
     ["seed", "🌱 Seed"], ["trunk", "🌲 Trunk"], ["branch", "🌿 Branch"],
-    ["leaf", "🍃 Leaf"], ["subdivide", "⚛️ Subdivide"], ["randomize", "🎲 Randomize"],
+    ["leaf", "🌴 Palm leaf"], ["coconut", "🥥 Coconut"], ["subdivide", "⚛️ Subdivide"], ["randomize", "🎲 Randomize"],
     ["scale", "📐 Scale"], ["rotate", "🔄 Rotate"], ["move", "↔️ Move"],
     ["trunkate", "✂️ Taper"], ["output", "📤 Output"],
 ];

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ReactFlow, Background, Controls, applyNodeChanges, applyEdgeChanges, addEdge } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
 import Viewport3D from "./components/Viewport3D.jsx";
@@ -16,6 +16,9 @@ export default function App() {
     const [edges, setEdges] = useState(initialEdges);
     const [menu, setMenu] = useState(null);
     const [projectPath, setProjectPath] = useState(null);
+    const [saveStatus, setSaveStatus] = useState("saved");
+    const saveQueue = useRef(Promise.resolve());
+    const saveRevision = useRef(0);
     const { setTree } = useTree();
     const compiler = useMemo(() => new TreeCompiler(), []);
     const compiled = useMemo(() => compiler.compile(nodes, edges), [compiler, nodes, edges]);
@@ -51,10 +54,39 @@ export default function App() {
         setEdges(result.project.graph.edges);
         setScreen("editor");
     }
-    async function saveProject() {
-        if (!projectPath) return;
-        await window.electronAPI?.saveProject(projectPath, { formatVersion: 1, name: projectPath.split(/[\\/]/).at(-1).replace(/\.opentree$/i, ""), graph: { nodes: serialize(nodes), edges } });
-    }
+    const saveProject = useCallback(() => {
+        if (!projectPath || screen !== "editor") return Promise.resolve(false);
+        const save = window.electronAPI?.saveProject;
+        if (!save) {
+            setSaveStatus("error");
+            return Promise.resolve(false);
+        }
+
+        const revision = ++saveRevision.current;
+        const project = {
+            formatVersion: 1,
+            name: projectPath.split(/[\\/]/).at(-1).replace(/\.opentree$/i, ""),
+            graph: { nodes: serialize(nodes), edges },
+        };
+        setSaveStatus("saving");
+        const task = saveQueue.current.catch(() => {}).then(() => save(projectPath, project));
+        saveQueue.current = task;
+        return task.then(() => {
+            if (saveRevision.current === revision) setSaveStatus("saved");
+            return true;
+        }).catch((error) => {
+            console.error("Impossible de sauvegarder le projet :", error);
+            if (saveRevision.current === revision) setSaveStatus("error");
+            return false;
+        });
+    }, [projectPath, screen, nodes, edges]);
+
+    useEffect(() => {
+        if (!projectPath || screen !== "editor") return undefined;
+        setSaveStatus("pending");
+        const timeout = window.setTimeout(() => saveProject(), 750);
+        return () => window.clearTimeout(timeout);
+    }, [projectPath, screen, nodes, edges, saveProject]);
     function createNode(type) {
         const id = crypto.randomUUID();
         setNodes((current) => [...current, { id, type, position: { x: menu?.x ?? 300, y: menu?.y ?? 200 }, data: { onChange: updateNodeData } }]);
@@ -81,7 +113,7 @@ export default function App() {
         <ReactFlow className="graph-pane" nodes={graphNodes} edges={edges} nodeTypes={nodeTypes} onNodesChange={onNodesChange} onEdgesChange={onEdgesChange} onConnect={onConnect} deleteKeyCode={["Backspace", "Delete"]} fitView colorMode="dark">
             <Background color="#333" /><Controls />
         </ReactFlow>
-        <div className="editor-toolbar"><div className="editor-brand"><span>✳</span> OpenTree</div><div className="editor-status">Procedural workspace</div></div>
+        <div className="editor-toolbar"><div className="editor-brand"><span>✳</span> OpenTree</div><div className="editor-status">{saveStatus === "saving" ? "Saving…" : saveStatus === "pending" ? "Changes pending…" : saveStatus === "error" ? "Save failed" : "Autosaved"}</div></div>
         <button className="save-button" onClick={saveProject}><span>◉</span> Save project</button>
         {compiled.errors.length > 0 && <div className="graph-error">{compiled.errors.join(" ")}</div>}
         <NodeContextMenu menu={menu} createNode={createNode} />
