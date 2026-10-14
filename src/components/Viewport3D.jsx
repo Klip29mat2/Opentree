@@ -13,7 +13,7 @@ function TreeModel() {
         useTexture("/textures/palmtrunk.jpg");
 
     const subdivisions =
-        tree.subdivisions ?? 1;
+        Math.min(100, Math.max(1, Math.floor(Number(tree.subdivisions) || 1)));
 
     const segmentLength =
         tree.trunklength / subdivisions;
@@ -32,6 +32,15 @@ function TreeModel() {
     const points = useMemo(() => {
 
         const generatedPoints = [];
+
+        // Seeded PRNG keeps a tree unchanged until the seed or its inputs change.
+        let state = (Number(tree.seed) >>> 0) || 1;
+        const random = () => {
+            state ^= state << 13;
+            state ^= state >>> 17;
+            state ^= state << 5;
+            return (state >>> 0) / 4294967296;
+        };
 
         for (let index = 0; index <= subdivisions; index++) {
 
@@ -55,23 +64,22 @@ function TreeModel() {
             }
 
 
-            const random =
-                Math.random() * 100;
+            const chance = random() * 100;
 
 
             const shouldMove =
-                random < percentage;
+                chance < percentage;
 
 
             const x =
                 shouldMove
-                    ? (Math.random() - 0.5) * coefficient
+                    ? (random() - 0.5) * coefficient
                     : 0;
 
 
             const z =
                 shouldMove
-                    ? (Math.random() - 0.5) * coefficient
+                    ? (random() - 0.5) * coefficient
                     : 0;
 
 
@@ -91,7 +99,8 @@ function TreeModel() {
         subdivisions,
         tree.trunklength,
         percentage,
-        coefficient
+        coefficient,
+        tree.seed
     ]);
 
 
@@ -285,6 +294,7 @@ export default function Viewport3D() {
 
     return (
         <Canvas
+            className="viewport-canvas"
             camera={{
                 position: [0, 2, 5]
             }}

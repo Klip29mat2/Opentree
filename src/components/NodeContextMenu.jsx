@@ -1,91 +1,12 @@
-export default function NodeContextMenu({
-    menu,
-    createNode
-}) {
-
-
-    if (!menu) {
-
-        return null;
-
-    }
-
-
-    return (
-
-        <div
-
-            style={{
-
-                position: "absolute",
-
-                left: menu.x,
-
-                top: menu.y,
-
-                background: "#222",
-
-                color: "white",
-
-                padding: "10px",
-
-                borderRadius: "8px",
-
-                zIndex: 1000,
-
-                display: "flex",
-
-                flexDirection: "column",
-
-                gap: "5px"
-
-            }}
-
-        >
-
-            <button onClick={() => createNode("seed")}>
-                🌱 Seed
-            </button>
-
-
-            <button onClick={() => createNode("trunk")}>
-                🌲 Trunk
-            </button>
-
-
-            <button onClick={() => createNode("branch")}>
-                🌿 Branch
-            </button>
-
-
-            <button onClick={() => createNode("leaf")}>
-                🍃 Leaf
-            </button>
-
-
-            <button onClick={() => createNode("output")}>
-                📤 Output
-            </button>
-
-          <button onClick={() => createNode("subdivide")}>
-                ⚛️ Subdivide
-            </button>
-
-
-      <button onClick={() => createNode("randomize")}>
-                Randomize
-            </button>
-
-          <button onClick={() => createNode("scale")}>
-                Scale
-            </button>
-
-            
-          <button onClick={() => createNode("rotate")}>
-                Rotate
-            </button>
-        </div>
-
-    );
-
+const options = [
+    ["seed", "🌱 Seed"], ["trunk", "🌲 Trunk"], ["branch", "🌿 Branch"],
+    ["leaf", "🍃 Leaf"], ["subdivide", "⚛️ Subdivide"], ["randomize", "🎲 Randomize"],
+    ["scale", "📐 Scale"], ["rotate", "🔄 Rotate"], ["move", "↔️ Move"],
+    ["trunkate", "✂️ Taper"], ["output", "📤 Output"],
+];
+export default function NodeContextMenu({ menu, createNode }) {
+    if (!menu) return null;
+    return <div className="node-context-menu" style={{ left: menu.x, top: menu.y }}>
+        {options.map(([type, label]) => <button key={type} onClick={() => createNode(type)}>{label}</button>)}
+    </div>;
 }

@@ -1,521 +1,89 @@
-import { 
-    useState,
-    useCallback,
-    useEffect
-} from "react";
-import Viewport3D from "./components/Viewport3D.jsx";
-
-import {
-    ReactFlow,
-    Background,
-    Controls,
-    applyNodeChanges,
-    applyEdgeChanges,
-    addEdge
-} from "@xyflow/react";
-
-import TreeCompiler from "./Engine/TreeCompiler.js";
-
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { ReactFlow, Background, Controls, applyNodeChanges, applyEdgeChanges, addEdge } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
-
-
-import {
-    nodes as initialNodes,
-    nodeTypes
-} from "./nodes/treeNodes.jsx";
-
-
+import Viewport3D from "./components/Viewport3D.jsx";
+import TreeCompiler from "./Engine/TreeCompiler.js";
+import { nodes as initialNodes, edges as initialEdges, nodeTypes } from "./nodes/treeNodes.jsx";
 import NodeContextMenu from "./components/NodeContextMenu.jsx";
-
 import StartMenu from "./components/StartMenu.jsx";
+import { useTree } from "./context/TreeContext.jsx";
 
-
+const serialize = (items) => items.map(({ data, ...item }) => ({ ...item, data: Object.fromEntries(Object.entries(data ?? {}).filter(([key]) => key !== "onChange" && key !== "onDelete")) }));
 
 export default function App() {
-
-
     const [screen, setScreen] = useState("home");
-
-
     const [nodes, setNodes] = useState(initialNodes);
-
-
-    const [edges, setEdges] = useState([]);
-
-
+    const [edges, setEdges] = useState(initialEdges);
     const [menu, setMenu] = useState(null);
-
-    const compiler = new TreeCompiler();
-
-
-
-    // déplacement des nodes
-
-    const onNodesChange = useCallback((changes)=>{
-
-
-        setNodes((nds)=>
-
-            applyNodeChanges(
-                changes,
-                nds
-            )
-
-        );
-
-
-    },[]);
-
-
-
-
-useEffect(()=>{
-
-    const tree = compiler.compile(
-        nodes,
-        edges
-    );
-
-
-    console.log(tree);
-
-
-},[nodes, edges]);
-
-
-    // déplacement des edges
-
-    const onEdgesChange = useCallback((changes)=>{
-
-
-        setEdges((eds)=>
-
-            applyEdgeChanges(
-                changes,
-                eds
-            )
-
-        );
-
-
-    },[]);
-
-
-
-
-function updateNode(key,value){
-
-
-    setNodes(nodes =>
-
-        nodes.map(node=>{
-
-
-            if(node.type !== "trunk")
-                return node;
-
-
-
-            return {
-
-                ...node,
-
-                data:{
-
-                    ...node.data,
-
-                    [key]:value
-
-                }
-
-            };
-
-
-        })
-
-    );
-
-
-}
-
-
-
-    // création des connexions
-
-    const onConnect = useCallback((connection)=>{
-
-
-        setEdges((eds)=>
-
-            addEdge(
-
-                {
-                    ...connection,
-
-                    animated:true,
-
-                    style:{
-                        stroke:"#81c784"
-                    }
-
-                },
-
-                eds
-
-            )
-
-        );
-
-
-    },[]);
-
-
-
-
-
-
-
-
-
-    // nouveau projet
-
-    async function newProject(){
-
-
-        const project =
-            await window.electronAPI.createProject();
-
-
-
-        if(project){
-
-
-            console.log(
-                "PROJECT CREATED:",
-                project
-            );
-
-
-            setNodes([]);
-
-
-            setEdges([]);
-
-
-            setScreen("editor");
-
-
-        }
-
-
+    const [projectPath, setProjectPath] = useState(null);
+    const { setTree } = useTree();
+    const compiler = useMemo(() => new TreeCompiler(), []);
+    const compiled = useMemo(() => compiler.compile(nodes, edges), [compiler, nodes, edges]);
+
+    const updateNodeData = useCallback((id, data) => setNodes((current) => current.map((node) => node.id === id ? { ...node, data } : node)), []);
+    const removeNode = useCallback((id) => {
+        setNodes((current) => current.filter((node) => node.id !== id));
+        setEdges((current) => current.filter((edge) => edge.source !== id && edge.target !== id));
+    }, []);
+    const graphNodes = useMemo(() => nodes.map((node) => ({
+        ...node,
+        data: { ...node.data, onChange: updateNodeData, onDelete: removeNode },
+    })), [nodes, updateNodeData, removeNode]);
+    useEffect(() => setTree(compiled.tree), [compiled.tree, setTree]);
+
+    const onNodesChange = useCallback((changes) => setNodes((current) => applyNodeChanges(changes, current)), []);
+    const onEdgesChange = useCallback((changes) => setEdges((current) => applyEdgeChanges(changes, current)), []);
+    const onConnect = useCallback((connection) => setEdges((current) => addEdge({ ...connection, animated: true, style: { stroke: "#81c784" } }, current)), []);
+
+    async function newProject() {
+        const result = await window.electronAPI?.createProject();
+        if (!result) return;
+        setProjectPath(result.path);
+        setNodes(result.project.graph.nodes);
+        setEdges(result.project.graph.edges);
+        setScreen("editor");
     }
-
-
-
-
-
-
-
-
-
-    // ouvrir projet Electron
-
-    async function openProject(){
-
-
-        console.log(
-            "OPEN PROJECT CLICK"
-        );
-
-
-
-        if(!window.electronAPI){
-
-
-            console.error(
-                "Electron API absente"
-            );
-
-
-            return;
-
-        }
-
-
-
-
-
-        const folder =
-            await window.electronAPI.openProject();
-
-
-
-
-        console.log(
-            "DOSSIER CHOISI :",
-            folder
-        );
-
-
-
-
-
-        if(folder){
-
-
-            setScreen("editor");
-
-
-        }
-
-
+    async function openProject() {
+        const result = await window.electronAPI?.openProject();
+        if (!result) return;
+        setProjectPath(result.path);
+        setNodes(result.project.graph.nodes.map((node) => ({ ...node, data: { ...node.data, onChange: updateNodeData } })));
+        setEdges(result.project.graph.edges);
+        setScreen("editor");
     }
-
-
-
-
-
-
-
-
-
-    // création node
-
-    function createNode(type){
-
-
-
-        const newNode = {
-
-
-            id:crypto.randomUUID(),
-
-
-            type:type,
-
-
-            position:{
-
-
-                x:menu.x,
-
-
-                y:menu.y
-
-
-            },
-
-
-            data:{}
-
-
-
-        };
-
-
-
-
-        setNodes((nds)=>[
-
-            ...nds,
-
-            newNode
-
-        ]);
-
-
-
-
+    async function saveProject() {
+        if (!projectPath) return;
+        await window.electronAPI?.saveProject(projectPath, { formatVersion: 1, name: projectPath.split(/[\\/]/).at(-1).replace(/\.opentree$/i, ""), graph: { nodes: serialize(nodes), edges } });
+    }
+    function createNode(type) {
+        const id = crypto.randomUUID();
+        setNodes((current) => [...current, { id, type, position: { x: menu?.x ?? 300, y: menu?.y ?? 200 }, data: { onChange: updateNodeData } }]);
         setMenu(null);
-
-
-
     }
-
-
-
-
-
-
-
-
-
-    // Shift + A
-
-    useEffect(()=>{
-
-
-        function shortcut(event){
-
-
-
-            if(
-
-                event.shiftKey &&
-
-                event.key.toLowerCase()==="a"
-
-            ){
-
-
+    useEffect(() => {
+        const shortcut = (event) => {
+            if (event.shiftKey && event.key.toLowerCase() === "a") {
                 event.preventDefault();
-
-
-
-                setMenu({
-
-                    x:window.innerWidth / 2,
-
-                    y:window.innerHeight / 2
-
-                });
-
-
+                setMenu({ x: window.innerWidth / 2, y: window.innerHeight / 2 });
             }
-
-
-        }
-
-
-
-
-        window.addEventListener(
-            "keydown",
-            shortcut
-        );
-
-
-
-
-        return()=>{
-
-
-            window.removeEventListener(
-                "keydown",
-                shortcut
-            );
-
-
+            if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "s") {
+                event.preventDefault();
+                saveProject();
+            }
         };
-
-
-
-    },[]);
-
-
-
-
-
-
-
-
-
-    // menu démarrage
-
-    if(screen==="home"){
-
-
-        return (
-
-            <StartMenu
-
-                newProject={newProject}
-
-                openProject={openProject}
-
-            />
-
-        );
-
-
-    }
-
-
-
-
-
-
-
-
-
-    // éditeur
-
-    return (
-
-
-        <div
-
-            style={{
-
-                display:"flex",
-
-
-                width:"100vw",
-
-                height:"100vh",
-
-                background:"#121212"
-
-            }}
-
-        >
-
-        <Viewport3D/>
-
-            <ReactFlow
-
-
-                nodes={nodes}
-
-
-                edges={edges}
-
-
-                nodeTypes={nodeTypes}
-
-
-                onNodesChange={onNodesChange}
-
-
-                onEdgesChange={onEdgesChange}
-
-
-                onConnect={onConnect}
-
-
-                fitView
-
-
-                colorMode="dark"
-
-
-            >
-
-
-                <Background color="#333"/>
-
-
-                <Controls/>
-
-
-            </ReactFlow>
-
-
-
-
-
-            <NodeContextMenu
-
-                menu={menu}
-
-                createNode={createNode}
-
-            />
-
-
-        </div>
-
-
-    );
-
+        window.addEventListener("keydown", shortcut);
+        return () => window.removeEventListener("keydown", shortcut);
+    });
+
+    if (screen === "home") return <StartMenu newProject={newProject} openProject={openProject} />;
+    return <div className="editor-shell">
+        <Viewport3D />
+        <ReactFlow className="graph-pane" nodes={graphNodes} edges={edges} nodeTypes={nodeTypes} onNodesChange={onNodesChange} onEdgesChange={onEdgesChange} onConnect={onConnect} deleteKeyCode={["Backspace", "Delete"]} fitView colorMode="dark">
+            <Background color="#333" /><Controls />
+        </ReactFlow>
+        <div className="editor-toolbar"><div className="editor-brand"><span>✳</span> OpenTree</div><div className="editor-status">Procedural workspace</div></div>
+        <button className="save-button" onClick={saveProject}><span>◉</span> Save project</button>
+        {compiled.errors.length > 0 && <div className="graph-error">{compiled.errors.join(" ")}</div>}
+        <NodeContextMenu menu={menu} createNode={createNode} />
+    </div>;
 }

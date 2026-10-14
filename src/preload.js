@@ -1,16 +1,2 @@
-console.log("PRELOAD OK");
-
-contextBridge.exposeInMainWorld(
-    "electronAPI",
-    {
-
-        openProject: () => {
-
-            return ipcRenderer.invoke(
-                "open-project"
-            );
-
-        }
-
-    }
-);
+// Electron's preload entry point is the root-level ../preload.js.
+// This file is retained only to avoid breaking old local references.

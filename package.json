@@ -27,11 +27,12 @@
     "appId": "com.opentree.app",
     "productName": "OpenTree",
     "directories": {
-      "output": "dist"
+      "output": "release"
     },
     "files": [
       "dist/**/*",
       "main.js",
+      "preload.js",
       "package.json"
     ],
     "win": {

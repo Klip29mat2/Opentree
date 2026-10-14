@@ -1,34 +1,7 @@
-const {
-    contextBridge,
-    ipcRenderer
-} = require("electron");
+const { contextBridge, ipcRenderer } = require("electron");
 
-
-console.log("PRELOAD CHARGE");
-
-
-contextBridge.exposeInMainWorld(
-    "electronAPI",
-    {
-
-
-        openProject:()=>{
-
-            return ipcRenderer.invoke(
-                "open-project"
-            );
-
-        },
-
-
-        createProject:()=>{
-
-            return ipcRenderer.invoke(
-                "create-project"
-            );
-
-        }
-
-
-    }
-);
+contextBridge.exposeInMainWorld("electronAPI", Object.freeze({
+    createProject: () => ipcRenderer.invoke("project:create"),
+    openProject: () => ipcRenderer.invoke("project:open"),
+    saveProject: (filePath, project) => ipcRenderer.invoke("project:save", filePath, project),
+}));

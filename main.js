@@ -1,255 +1,88 @@
-const {
-    app,
-    BrowserWindow,
-    ipcMain,
-    dialog
-} = require("electron");
-
+const { app, BrowserWindow, ipcMain, dialog } = require("electron");
+const fs = require("node:fs/promises");
+const path = require("node:path");
 
 let mainWindow;
-
-
+const projectPaths = new Map();
+const emptyProject = (name = "NewTreeProject") => ({ formatVersion: 1, name, graph: { nodes: [], edges: [] } });
 
 function createWindow() {
-
-
     mainWindow = new BrowserWindow({
-
         width: 1200,
-
         height: 800,
-
         webPreferences: {
-
             nodeIntegration: false,
-
             contextIsolation: true,
-
-            preload: __dirname + "/preload.js"
-
-        }
-
+            sandbox: true,
+            preload: path.join(__dirname, "preload.js"),
+        },
     });
-
-
-
-    mainWindow.loadURL(
-        "http://localhost:5173"
-    );
-
-
-    mainWindow.on(
-        "closed",
-        () => {
-
-            mainWindow = null;
-
-        }
-    );
-
+    if (app.isPackaged) {
+        mainWindow.loadFile(path.join(__dirname, "dist", "index.html"));
+    } else {
+        loadDevelopmentPage(mainWindow);
+    }
+    mainWindow.on("closed", () => { mainWindow = null; });
 }
 
-
-
-
-
-// Ouvrir un dossier projet
-
-ipcMain.handle(
-    "open-project",
-    async () => {
-
-
-        const result =
-            await dialog.showOpenDialog({
-
-                title: "OpenTree Project",
-
-                properties: [
-
-                    "openDirectory"
-
-                ]
-
-            });
-
-
-
-        if (result.canceled) {
-
-            return null;
-
+async function loadDevelopmentPage(window) {
+    const url = "http://localhost:5173";
+    for (let attempt = 0; attempt < 40 && !window.isDestroyed(); attempt += 1) {
+        try {
+            await window.loadURL(url);
+            return;
+        } catch {
+            await new Promise((resolve) => setTimeout(resolve, 250));
         }
-
-
-
-        return result.filePaths[0];
-
     }
-);
+}
 
-app.whenReady().then(() => {
+function validateProject(project) {
+    if (!project || project.formatVersion !== 1 || !project.graph || !Array.isArray(project.graph.nodes) || !Array.isArray(project.graph.edges)) {
+        throw new Error("Fichier OpenTree invalide ou version non prise en charge.");
+    }
+    return project;
+}
 
-
-    createWindow();
-
-
-
-    app.on(
-        "activate",
-        () => {
-
-
-            if (
-                BrowserWindow.getAllWindows().length === 0
-            ) {
-
-                createWindow();
-
-            }
-
-
-        }
-    );
-
-
+ipcMain.handle("project:create", async (event) => {
+    const result = await dialog.showSaveDialog(mainWindow, {
+        title: "Créer un projet OpenTree",
+        defaultPath: "NewTreeProject.opentree",
+        filters: [{ name: "Projet OpenTree", extensions: ["opentree"] }],
+    });
+    if (result.canceled || !result.filePath) return null;
+    const project = emptyProject(path.basename(result.filePath, path.extname(result.filePath)));
+    await fs.writeFile(result.filePath, JSON.stringify(project, null, 2), "utf8");
+    projectPaths.set(event.sender.id, result.filePath);
+    return { path: result.filePath, project };
 });
 
+ipcMain.handle("project:open", async (event) => {
+    const result = await dialog.showOpenDialog(mainWindow, {
+        title: "Ouvrir un projet OpenTree",
+        properties: ["openFile"],
+        filters: [{ name: "Projet OpenTree", extensions: ["opentree"] }],
+    });
+    if (result.canceled || !result.filePaths[0]) return null;
+    const filePath = result.filePaths[0];
+    const project = validateProject(JSON.parse(await fs.readFile(filePath, "utf8")));
+    projectPaths.set(event.sender.id, filePath);
+    return { path: filePath, project };
+});
 
+ipcMain.handle("project:save", async (event, filePath, project) => {
+    if (typeof filePath !== "string" || projectPaths.get(event.sender.id) !== filePath) throw new Error("Chemin de projet invalide.");
+    validateProject(project);
+    await fs.writeFile(filePath, JSON.stringify(project, null, 2), "utf8");
+    return true;
+});
 
+app.on("web-contents-created", (_event, contents) => {
+    contents.on("destroyed", () => projectPaths.delete(contents.id));
+});
 
-
-
-app.on(
-    "window-all-closed",
-    () => {
-
-
-        if (
-            process.platform !== "darwin"
-        ) {
-
-            app.quit();
-
-        }
-
-
-    }
-);
-
-
-const fs = require("fs");
-const path = require("path");
-
-
-ipcMain.handle(
-    "create-project",
-    async()=>{
-
-
-        const result =
-            await dialog.showOpenDialog({
-
-                title:"Choose project location",
-
-                properties:[
-                    "openDirectory"
-                ]
-
-            });
-
-
-
-        if(result.canceled){
-
-            return null;
-
-        }
-
-
-
-        const parent =
-            result.filePaths[0];
-
-
-
-        const projectName =
-            "NewTreeProject";
-
-
-
-        const projectPath =
-            path.join(
-                parent,
-                projectName
-            );
-
-
-
-        fs.mkdirSync(
-            projectPath,
-            {
-                recursive:true
-            }
-        );
-
-
-
-        fs.mkdirSync(
-            path.join(
-                projectPath,
-                "assets"
-            ),
-            {
-                recursive:true
-            }
-        );
-
-
-
-        fs.mkdirSync(
-            path.join(
-                projectPath,
-                "thumbnails"
-            ),
-            {
-                recursive:true
-            }
-        );
-
-
-
-        const data = {
-
-            name:projectName,
-
-            nodes:[],
-
-            edges:[]
-
-        };
-
-
-
-        fs.writeFileSync(
-
-            path.join(
-                projectPath,
-                "project.opentree"
-            ),
-
-            JSON.stringify(
-                data,
-                null,
-                4
-            )
-
-        );
-
-
-
-        return projectPath;
-
-
-    }
-);
+app.whenReady().then(() => {
+    createWindow();
+    app.on("activate", () => { if (BrowserWindow.getAllWindows().length === 0) createWindow(); });
+});
+app.on("window-all-closed", () => { if (process.platform !== "darwin") app.quit(); });
