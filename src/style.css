@@ -68,7 +68,18 @@ button { color: inherit; }
 
 /* Editor shell */
 .editor-shell { position: relative; display: flex; width: 100vw; height: 100vh; overflow: hidden; background: #0b100f; }
-.viewport-canvas { flex: 1 1 50%; min-width: 0; background: radial-gradient(ellipse at 50% 42%, #18241e, #0d1311 70%); }
+.viewport-panel { position: relative; flex: 1 1 50%; min-width: 0; min-height: 0; }
+.viewport-canvas { width: 100%; height: 100%; background: radial-gradient(ellipse at 50% 42%, #18241e, #0d1311 70%); }
+.lod-preview-controls { position: absolute; z-index: 7; bottom: 16px; left: 16px; display: flex; align-items: center; gap: 16px; padding: 9px 10px 9px 13px; border: 1px solid rgba(176,207,183,.16); border-radius: 9px; color: #dce8de; background: rgba(12,18,15,.84); box-shadow: 0 8px 24px rgba(0,0,0,.24); backdrop-filter: blur(12px); }
+.lod-preview-heading { display: flex; flex-direction: column; gap: 4px; min-width: 112px; }
+.lod-preview-eyebrow { color: #91c99a; font: 9px 'DM Mono', monospace; letter-spacing: .12em; }
+.lod-preview-description { color: #a0afa3; font-size: 10px; }
+.lod-preview-buttons { display: flex; gap: 4px; padding: 3px; border: 1px solid rgba(176,207,183,.1); border-radius: 7px; background: rgba(5,10,7,.45); }
+.lod-preview-button { padding: 6px 9px; border: 1px solid transparent; border-radius: 5px; color: #a1b0a4; background: transparent; cursor: pointer; font: 10px 'DM Mono', monospace; transition: color .15s ease, border-color .15s ease, background .15s ease; }
+.lod-preview-button:hover { color: #e5f0e7; background: rgba(145,201,154,.09); }
+.lod-preview-button[aria-pressed="true"] { border-color: rgba(145,201,154,.27); color: #e9f5ea; background: rgba(75,119,82,.38); }
+.lod-preview-button:focus-visible { outline: 2px solid #91c99a; outline-offset: 2px; }
+.lod-preview-error { position: absolute; bottom: calc(100% + 7px); left: 0; width: max-content; max-width: min(380px, 80vw); padding: 7px 9px; border: 1px solid rgba(255,138,128,.25); border-radius: 6px; color: #ffaaa2; background: rgba(52,25,23,.92); font-size: 10px; }
 .graph-pane { flex: 1 1 50%; min-width: 0; border-left: 1px solid rgba(169,202,176,.12); }
 .editor-toolbar { position: absolute; z-index: 8; top: 14px; left: 15px; display: flex; align-items: center; gap: 10px; pointer-events: none; }
 .editor-brand { display: flex; align-items: center; gap: 8px; padding: 8px 11px; color: #dfe9e0; border: 1px solid rgba(176,207,183,.14); border-radius: 8px; background: rgba(12,18,15,.82); box-shadow: 0 8px 24px rgba(0,0,0,.18); backdrop-filter: blur(12px); font: 600 12px 'Space Grotesk', sans-serif; }
@@ -127,7 +138,11 @@ button { color: inherit; }
     .project-card { min-height: 190px; padding: 18px; }
     .launcher-footer { flex-direction: column; margin-top: 30px; }
     .editor-brand { display: none; }
-    .viewport-canvas { flex-basis: 42%; }
+    .viewport-panel { flex-basis: 42%; }
     .graph-pane { flex-basis: 58%; }
+    .lod-preview-controls { bottom: 10px; left: 10px; gap: 8px; padding: 7px; }
+    .lod-preview-heading { min-width: 0; }
+    .lod-preview-description { display: none; }
+    .lod-preview-button { padding: 6px; }
 }
 @media (prefers-reduced-motion: reduce) { *, *::before, *::after { scroll-behavior: auto !important; animation-duration: .01ms !important; transition-duration: .01ms !important; } }

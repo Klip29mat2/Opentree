@@ -1,12 +1,11 @@
-import { useEffect, useMemo, useRef } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Canvas } from "@react-three/fiber";
 import { OrbitControls, useTexture } from "@react-three/drei";
 import { useTree } from "../context/TreeContext.jsx";
 import * as THREE from "three";
 import { GLTFExporter } from "three/examples/jsm/exporters/GLTFExporter.js";
-import { SimplifyModifier } from "three/examples/jsm/modifiers/SimplifyModifier.js";
-import { mergeGeometries, mergeVertices } from "three/examples/jsm/utils/BufferGeometryUtils.js";
 import { FBXExporter } from "@comfyorg/fbx-exporter-three";
+import { createUnrealLodScene } from "../Engine/UnrealLodBuilder.js";
 
 function createTubeGeometry(curve, radiusAt, tubularSegments, radialSegments, radialNoise = 0) {
     const frames = curve.computeFrenetFrames(tubularSegments, false);
@@ -136,6 +135,12 @@ function BranchMeshes({ tree, curve, texture, wireframe }) {
 
 function CoconutMeshes({ tree, curve, wireframe }) {
     const clusters = tree.coconuts ?? [];
+    const loadedCoconutTexture = useTexture(`${import.meta.env.BASE_URL}textures/coconuttexture.png`);
+    const coconutTexture = useMemo(() => {
+        loadedCoconutTexture.colorSpace = THREE.SRGBColorSpace;
+        loadedCoconutTexture.needsUpdate = true;
+        return loadedCoconutTexture;
+    }, [loadedCoconutTexture]);
     const fruits = useMemo(() => {
         const result = [];
         const goldenAngle = Math.PI * (3 - Math.sqrt(5));
@@ -156,14 +161,15 @@ function CoconutMeshes({ tree, curve, wireframe }) {
                     .add(new THREE.Vector3(0, Math.sin(index * 2.1) * size * 0.16, 0));
                 const longAxis = radial.clone().multiplyScalar(0.55).addScaledVector(tangent, 0.72).normalize();
                 const quaternion = new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 1, 0), longAxis);
-                const color = cluster.color === "yellow" ? "#efc84b" : "#704329";
+                const isYellow = cluster.color === "yellow";
 
                 result.push({
                     key: `${clusterIndex}-${index}`,
                     position,
                     quaternion,
                     size,
-                    color,
+                    color: isYellow ? "#efc84b" : "#ffffff",
+                    textured: !isYellow,
                 });
             }
         });
@@ -173,7 +179,7 @@ function CoconutMeshes({ tree, curve, wireframe }) {
     return fruits.map((fruit) => (
         <mesh key={fruit.key} position={fruit.position} quaternion={fruit.quaternion} scale={[fruit.size * 0.58, fruit.size * 0.78, fruit.size * 0.58]} castShadow receiveShadow>
             <sphereGeometry args={[1, 20, 16]} />
-            <meshStandardMaterial color={fruit.color} roughness={0.88} wireframe={wireframe} />
+            <meshStandardMaterial map={fruit.textured ? coconutTexture : null} color={fruit.color} roughness={0.88} wireframe={wireframe} />
         </mesh>
     ));
 }
@@ -426,12 +432,12 @@ function DriedFrondMeshes({ tree, curve, wireframe }) {
     );
 }
 
-function TreeModel({ treeRef, wireframe }) {
+function TreeModel({ treeRef, wireframe, visible = true }) {
 
     const { tree } = useTree();
 
     const texture =
-        useTexture(`${import.meta.env.BASE_URL}textures/palmtrunk.jpg`);
+        useTexture(`${import.meta.env.BASE_URL}textures/palmtrunktexture.png`);
 
     const subdivisions =
         Math.min(100, Math.max(1, Math.floor(Number(tree.subdivisions) || 1)));
@@ -550,6 +556,7 @@ function TreeModel({ treeRef, wireframe }) {
         <group
             ref={treeRef}
             name="OpenTree"
+            visible={visible}
             position={[
                 tree.move.x,
                 tree.move.y,
@@ -587,6 +594,7 @@ function GLBExportBridge({ treeRef, onReady }) {
 
             const root = treeRef.current.clone(true);
             root.name = "OpenTree";
+            root.visible = true;
             root.traverse((object) => {
                 if (!object.isMesh) return;
                 const exportMaterial = (material) => {
@@ -614,142 +622,9 @@ function GLBExportBridge({ treeRef, onReady }) {
                 return;
             }
 
-            // Unreal LODs belong to one Static Mesh. Merge the tree into a single
-            // mesh with material sections, then simplify each section independently.
-            root.updateMatrixWorld(true);
-            const materialKeys = new Map();
-            const sections = new Map();
-            const getMaterialKey = (material) => {
-                const color = material.color?.getHexString?.() ?? "ffffff";
-                const map = material.map?.uuid ?? "none";
-                const key = `${map}|${color}|${Boolean(material.vertexColors)}|${material.roughness ?? 1}|${material.side ?? 0}`;
-                if (!materialKeys.has(key)) materialKeys.set(key, material);
-                return key;
-            };
-            root.traverse((object) => {
-                if (!object.isMesh || !object.geometry?.getAttribute("position")) return;
-                const sourceMaterials = Array.isArray(object.material) ? object.material : [object.material];
-                const sourceGeometry = object.geometry;
-                const groups = sourceGeometry.groups.length ? sourceGeometry.groups : [{ start: 0, count: sourceGeometry.index?.count ?? sourceGeometry.getAttribute("position").count, materialIndex: 0 }];
-                for (const group of groups) {
-                    const sourceMaterial = sourceMaterials[group.materialIndex] ?? sourceMaterials[0];
-                    if (!sourceMaterial) continue;
-                    const key = getMaterialKey(sourceMaterial);
-                    const geometry = new THREE.BufferGeometry();
-                    const start = group.start;
-                    const count = group.count;
-                    const index = sourceGeometry.index;
-                    const positions = sourceGeometry.getAttribute("position");
-                    const sourceIndices = index ? Array.from(index.array.slice(start, start + count)) : Array.from({ length: count }, (_, i) => start + i);
-                    const doubleSided = sourceMaterial.side === THREE.DoubleSide;
-                    const indices = [];
-                    const flippedCorners = [];
-                    for (let corner = 0; corner < sourceIndices.length; corner += 3) {
-                        const triangle = sourceIndices.slice(corner, corner + 3);
-                        if (triangle.length !== 3) continue;
-                        indices.push(...triangle);
-                        flippedCorners.push(false, false, false);
-                        // FBX materials do not reliably preserve Three's DoubleSide flag.
-                        // Duplicate the reverse-facing surface so thin fronds remain visible.
-                        if (doubleSided) {
-                            indices.push(triangle[2], triangle[1], triangle[0]);
-                            flippedCorners.push(true, true, true);
-                        }
-                    }
-                    const transformed = [];
-                    const normals = [];
-                    const uvs = [];
-                    const colors = [];
-                    const normalMatrix = new THREE.Matrix3().getNormalMatrix(object.matrixWorld);
-                    const position = new THREE.Vector3();
-                    const normal = new THREE.Vector3();
-                    const uv = sourceGeometry.getAttribute("uv");
-                    const color = sourceGeometry.getAttribute("color");
-                    for (let corner = 0; corner < indices.length; corner += 1) {
-                        const vertexIndex = indices[corner];
-                        position.fromBufferAttribute(positions, vertexIndex).applyMatrix4(object.matrixWorld);
-                        transformed.push(position.x, position.y, position.z);
-                        if (sourceGeometry.getAttribute("normal")) {
-                            normal.fromBufferAttribute(sourceGeometry.getAttribute("normal"), vertexIndex).applyMatrix3(normalMatrix).normalize();
-                            if (flippedCorners[corner]) normal.negate();
-                            normals.push(normal.x, normal.y, normal.z);
-                        } else normals.push(0, 1, 0);
-                        if (uv) uvs.push(uv.getX(vertexIndex), uv.getY(vertexIndex));
-                        else uvs.push(0, 0);
-                        if (color) colors.push(color.getX(vertexIndex), color.getY(vertexIndex), color.getZ(vertexIndex));
-                        else colors.push(1, 1, 1);
-                    }
-                    geometry.setAttribute("position", new THREE.Float32BufferAttribute(transformed, 3));
-                    geometry.setAttribute("normal", new THREE.Float32BufferAttribute(normals, 3));
-                    geometry.setAttribute("uv", new THREE.Float32BufferAttribute(uvs, 2));
-                    geometry.setAttribute("color", new THREE.Float32BufferAttribute(colors, 3));
-                    geometry.setIndex(indices.map((_, i) => i));
-                    if (!sections.has(key)) sections.set(key, []);
-                    sections.get(key).push(geometry);
-                }
-            });
-
             const baseName = (filename || "opentree.glb").replace(/\.(glb|fbx)$/i, "");
-            const simplify = new SimplifyModifier();
-            const hasValidTriangles = (geometry) => {
-                const positions = geometry.getAttribute("position");
-                const index = geometry.index;
-                if (!positions || !index || index.count < 3 || index.count % 3 !== 0) return false;
-                const a = new THREE.Vector3();
-                const b = new THREE.Vector3();
-                const c = new THREE.Vector3();
-                const ab = new THREE.Vector3();
-                const ac = new THREE.Vector3();
-                for (let offset = 0; offset + 2 < index.count; offset += 3) {
-                    a.fromBufferAttribute(positions, index.getX(offset));
-                    b.fromBufferAttribute(positions, index.getX(offset + 1));
-                    c.fromBufferAttribute(positions, index.getX(offset + 2));
-                    if (![a.x, a.y, a.z, b.x, b.y, b.z, c.x, c.y, c.z].every(Number.isFinite)) return false;
-                    ab.subVectors(b, a);
-                    ac.subVectors(c, a);
-                    if (ab.cross(ac).lengthSq() <= 1e-16) return false;
-                }
-                return true;
-            };
             const buildLod = async (lod, ratio) => {
-                const sectionGeometry = [];
-                const sectionMaterials = [];
-                for (const [key, geometries] of sections) {
-                    let merged = mergeGeometries(geometries);
-                    if (!merged) throw new Error("Impossible de regrouper les matériaux pour Unreal.");
-                    if (ratio < 1) {
-                        // SimplifyModifier's count means vertices to collapse after
-                        // mergeVertices(), not raw corner count. Use the same welded count
-                        // or the modifier can collapse every face in a heavily indexed mesh.
-                        const welded = mergeVertices(merged);
-                        const weldedVertexCount = welded.getAttribute("position").count;
-                        welded.dispose();
-                        const removeCount = Math.min(Math.max(0, weldedVertexCount - 4), Math.floor(weldedVertexCount * (1 - ratio)));
-                        if (removeCount > 0) {
-                            const reduced = simplify.modify(merged, removeCount);
-                            if (hasValidTriangles(reduced)) {
-                                merged.dispose();
-                                merged = reduced;
-                            } else {
-                                reduced.dispose();
-                            }
-                        }
-                    }
-                    if ((merged.index?.count ?? 0) < 3) {
-                        merged.dispose();
-                        throw new Error(`La géométrie ${key} est vide après réduction ${lod}.`);
-                    }
-                    sectionGeometry.push(merged);
-                    sectionMaterials.push(materialKeys.get(key));
-                }
-                const combined = mergeGeometries(sectionGeometry, true);
-                sectionGeometry.forEach((geometry) => geometry.dispose());
-                if (!combined) throw new Error("Impossible de créer le mesh Unreal.");
-                const lodRoot = new THREE.Group();
-                lodRoot.name = "OpenTree";
-                const combinedMesh = new THREE.Mesh(combined, sectionMaterials);
-                combinedMesh.name = "OpenTree_StaticMesh";
-                lodRoot.add(combinedMesh);
+                const lodRoot = createUnrealLodScene(root, ratio);
                 const bytes = await new FBXExporter().parseAsync(lodRoot, {
                     preset: "unreal",
                     version: 7500,
@@ -764,23 +639,64 @@ function GLBExportBridge({ treeRef, onReady }) {
                 link.download = `${baseName}_${lod}.fbx`;
                 link.click();
                 window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+                lodRoot.traverse((object) => object.geometry?.dispose());
                 lodRoot.clear();
-                combined.dispose();
             };
-            try {
-                await buildLod("LOD0", 1);
-                await buildLod("LOD1", 0.55);
-                // Keep a safer triangle floor for UE's FBX MeshDescription builder;
-                // aggressively collapsing thin foliage can leave only degenerate faces.
-                await buildLod("LOD2", 0.4);
-            } finally {
-                sections.forEach((geometries) => geometries.forEach((geometry) => geometry.dispose()));
-            }
+            await buildLod("LOD0", 1);
+            await buildLod("LOD1", 0.55);
+            // Keep a safer triangle floor for UE's FBX MeshDescription builder.
+            await buildLod("LOD2", 0.4);
         });
         return () => onReady(null);
     }, [onReady, treeRef]);
 
     return null;
+}
+
+function UnrealLodPreview({ treeRef, level, onError }) {
+    const { tree } = useTree();
+    const [preview, setPreview] = useState(null);
+
+    useEffect(() => {
+        setPreview(null);
+        if (!treeRef.current) {
+            onError("");
+            return undefined;
+        }
+
+        let scene;
+        let materials = [];
+        try {
+            const source = treeRef.current.clone(true);
+            source.visible = true;
+            source.traverse((object) => {
+                if (!object.isMesh) return;
+                const cloneMaterial = (material) => {
+                    const clone = material.clone();
+                    clone.wireframe = false;
+                    materials.push(clone);
+                    return clone;
+                };
+                object.material = Array.isArray(object.material)
+                    ? object.material.map(cloneMaterial)
+                    : cloneMaterial(object.material);
+            });
+            const ratio = [1, 0.55, 0.4][level];
+            scene = createUnrealLodScene(source, ratio);
+            setPreview(scene);
+            onError("");
+        } catch (error) {
+            onError(error instanceof Error ? error.message : "Impossible de générer cet aperçu LOD.");
+        }
+
+        return () => {
+            scene?.traverse((object) => object.geometry?.dispose());
+            scene?.clear();
+            materials.forEach((material) => material.dispose());
+        };
+    }, [level, onError, tree, treeRef]);
+
+    return preview ? <primitive object={preview} dispose={null} /> : null;
 }
 
 function PolygonStatsBridge({ treeRef, onTriangleCount }) {
@@ -840,18 +756,28 @@ function Ground({ visible }) {
 
 export default function Viewport3D({ onExportReady, onTriangleCount, wireframe, showGrid, showShadows }) {
     const treeRef = useRef(null);
+    const [previewLod, setPreviewLod] = useState(0);
+    const [previewError, setPreviewError] = useState("");
+    const handlePreviewError = useCallback((message) => setPreviewError(message), []);
+
+    const lodOptions = [
+        { level: 0, title: "LOD 0", detail: "Qualité maximale" },
+        { level: 1, title: "LOD 1", detail: "Distance moyenne" },
+        { level: 2, title: "LOD 2", detail: "Grande distance" },
+    ];
 
     return (
-        <Canvas
-            className="viewport-canvas"
-            shadows={showShadows}
-            camera={{
-                position: [42, 34, 62],
-                fov: 42,
-                near: 0.1,
-                far: 300,
-            }}
-        >
+        <div className="viewport-panel">
+            <Canvas
+                className="viewport-canvas"
+                shadows={showShadows}
+                camera={{
+                    position: [42, 34, 62],
+                    fov: 42,
+                    near: 0.1,
+                    far: 300,
+                }}
+            >
 
             <hemisphereLight args={["#dcebd8", "#30271e", 0.8]} />
 
@@ -871,7 +797,8 @@ export default function Viewport3D({ onExportReady, onTriangleCount, wireframe, 
 
             <directionalLight position={[30, 24, -35]} intensity={0.55} />
 
-            <TreeModel treeRef={treeRef} wireframe={wireframe} />
+            <TreeModel treeRef={treeRef} wireframe={wireframe} visible={false} />
+            <UnrealLodPreview treeRef={treeRef} level={previewLod} onError={handlePreviewError} />
             <GLBExportBridge treeRef={treeRef} onReady={onExportReady} />
             <PolygonStatsBridge treeRef={treeRef} onTriangleCount={onTriangleCount} />
 
@@ -879,6 +806,27 @@ export default function Viewport3D({ onExportReady, onTriangleCount, wireframe, 
 
             <OrbitControls target={[0, 25, 0]} minDistance={12} maxDistance={220} />
 
-        </Canvas>
+            </Canvas>
+            <div className="lod-preview-controls" aria-label="Aperçu des niveaux de détail">
+                <div className="lod-preview-heading">
+                    <span className="lod-preview-eyebrow">APERÇU LOD</span>
+                    <span className="lod-preview-description">{lodOptions[previewLod].detail}</span>
+                </div>
+                <div className="lod-preview-buttons">
+                    {lodOptions.map(({ level, title }) => (
+                        <button
+                            key={level}
+                            type="button"
+                            className="lod-preview-button"
+                            aria-pressed={previewLod === level}
+                            onClick={() => setPreviewLod(level)}
+                        >
+                            {title}
+                        </button>
+                    ))}
+                </div>
+                {previewError && <span className="lod-preview-error" role="status">{previewError}</span>}
+            </div>
+        </div>
     );
 }
