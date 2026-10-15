@@ -18,10 +18,17 @@ export default function App() {
     const [projectPath, setProjectPath] = useState(null);
     const [saveStatus, setSaveStatus] = useState("saved");
     const [fileMenuOpen, setFileMenuOpen] = useState(false);
+    const [viewMenuOpen, setViewMenuOpen] = useState(false);
+    const [wireframe, setWireframe] = useState(false);
+    const [showGrid, setShowGrid] = useState(true);
+    const [showShadows, setShowShadows] = useState(true);
+    const [triangleCount, setTriangleCount] = useState(0);
     const [exportStatus, setExportStatus] = useState("");
     const [exportGLB, setExportGLB] = useState(null);
     const saveQueue = useRef(Promise.resolve());
     const saveRevision = useRef(0);
+    const mousePosition = useRef({ x: window.innerWidth / 2, y: window.innerHeight / 2 });
+    const flowInstance = useRef(null);
     const { setTree } = useTree();
     const compiler = useMemo(() => new TreeCompiler(), []);
     const compiled = useMemo(() => compiler.compile(nodes, edges), [compiler, nodes, edges]);
@@ -111,29 +118,39 @@ export default function App() {
     }, [projectPath, screen, nodes, edges, saveProject]);
     function createNode(type) {
         const id = crypto.randomUUID();
-        setNodes((current) => [...current, { id, type, position: { x: menu?.x ?? 300, y: menu?.y ?? 200 }, data: { onChange: updateNodeData } }]);
+        const position = menu && flowInstance.current
+            ? flowInstance.current.screenToFlowPosition({ x: menu.x, y: menu.y })
+            : { x: menu?.x ?? 300, y: menu?.y ?? 200 };
+        setNodes((current) => [...current, { id, type, position, data: { onChange: updateNodeData } }]);
         setMenu(null);
     }
     useEffect(() => {
+        const trackMouse = (event) => {
+            mousePosition.current = { x: event.clientX, y: event.clientY };
+        };
         const shortcut = (event) => {
             if (event.shiftKey && event.key.toLowerCase() === "a") {
                 event.preventDefault();
-                setMenu({ x: window.innerWidth / 2, y: window.innerHeight / 2 });
+                setMenu({ ...mousePosition.current });
             }
             if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "s") {
                 event.preventDefault();
                 saveProject();
             }
         };
+        window.addEventListener("mousemove", trackMouse);
         window.addEventListener("keydown", shortcut);
-        return () => window.removeEventListener("keydown", shortcut);
+        return () => {
+            window.removeEventListener("mousemove", trackMouse);
+            window.removeEventListener("keydown", shortcut);
+        };
     });
 
     if (screen === "home") return <StartMenu newProject={newProject} openProject={openProject} />;
     return <div className="editor-shell">
-        <Viewport3D onExportReady={registerGLBExporter} />
-        <ReactFlow className="graph-pane" nodes={graphNodes} edges={edges} nodeTypes={nodeTypes} onNodesChange={onNodesChange} onEdgesChange={onEdgesChange} onConnect={onConnect} deleteKeyCode={["Backspace", "Delete"]} fitView colorMode="dark">
-            <Background color="#333" /><Controls />
+        <Viewport3D onExportReady={registerGLBExporter} onTriangleCount={setTriangleCount} wireframe={wireframe} showGrid={showGrid} showShadows={showShadows} />
+        <ReactFlow className="graph-pane" nodes={graphNodes} edges={edges} nodeTypes={nodeTypes} onNodesChange={onNodesChange} onEdgesChange={onEdgesChange} onConnect={onConnect} onInit={(instance) => { flowInstance.current = instance; }} deleteKeyCode={["Backspace", "Delete"]} snapToGrid snapGrid={[20, 20]} fitView colorMode="dark">
+            <Background color="#333" gap={20} /><Controls />
         </ReactFlow>
         <div className="editor-toolbar">
             <div className="editor-brand"><span>✳</span> OpenTree</div>
@@ -141,6 +158,15 @@ export default function App() {
                 <button className="file-menu-trigger" aria-haspopup="menu" aria-expanded={fileMenuOpen} onClick={() => setFileMenuOpen((open) => !open)}>File <span>⌄</span></button>
                 {fileMenuOpen && <div className="file-menu" role="menu">
                     <button role="menuitem" onClick={exportTree}><span>⇧</span><span>Export as GLB<small>Binary glTF · .glb</small></span></button>
+                </div>}
+            </div>
+            <div className="file-menu-wrap">
+                <button className="file-menu-trigger" aria-haspopup="menu" aria-expanded={viewMenuOpen} onClick={() => { setViewMenuOpen((open) => !open); setFileMenuOpen(false); }}>View <span>⌄</span></button>
+                {viewMenuOpen && <div className="file-menu" role="menu">
+                    <button role="menuitemcheckbox" aria-checked={wireframe} onClick={() => setWireframe((enabled) => !enabled)}><span>{wireframe ? "☑" : "□"}</span><span>Polygon mesh<small>Show triangle edges</small></span></button>
+                    <button role="menuitemcheckbox" aria-checked={showGrid} onClick={() => setShowGrid((visible) => !visible)}><span>{showGrid ? "☑" : "□"}</span><span>Ground grid<small>Show or hide the ground</small></span></button>
+                    <button role="menuitemcheckbox" aria-checked={showShadows} onClick={() => setShowShadows((enabled) => !enabled)}><span>{showShadows ? "☑" : "□"}</span><span>Shadows<small>Enable or disable shadows</small></span></button>
+                    <div className="view-menu-stat">{triangleCount.toLocaleString("en-US")} triangles</div>
                 </div>}
             </div>
             <div className="editor-status">{exportStatus || (saveStatus === "saving" ? "Saving…" : saveStatus === "pending" ? "Changes pending…" : saveStatus === "error" ? "Save failed" : "Autosaved")}</div>

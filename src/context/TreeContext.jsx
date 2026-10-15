@@ -7,6 +7,7 @@ export const DEFAULT_TREE = {
     branches: [],
     coconuts: [],
     leaves: [],
+    driedFronds: [],
     rotation: { x: 0, y: 0, z: 0 }, scale: { x: 1, y: 1, z: 1 }, move: { x: 0, y: 25, z: 0 },
 };
 

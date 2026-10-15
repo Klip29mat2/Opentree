@@ -82,6 +82,7 @@ button { color: inherit; }
 .file-menu button:hover, .file-menu button:focus-visible { outline: 0; color: #f0f7f1; background: rgba(145,201,154,.12); }
 .file-menu button > span:first-child { color: var(--green); font-size: 16px; }
 .file-menu small { display: block; margin-top: 3px; color: #829188; font: 9px 'DM Mono', monospace; }
+.view-menu-stat { margin: 5px 4px 2px; padding: 8px 9px 4px; border-top: 1px solid rgba(177,207,185,.12); color: #91c99a; font: 10px 'DM Mono', monospace; }
 .editor-status { color: #8da093; font: 9px 'DM Mono', monospace; letter-spacing: .1em; text-transform: uppercase; }
 .save-button { position: absolute; z-index: 10; top: 14px; right: 15px; display: flex; align-items: center; gap: 8px; padding: 9px 14px; border: 1px solid rgba(145,201,154,.38); border-radius: 8px; color: #d9eddb; background: rgba(36,70,43,.82); box-shadow: 0 8px 24px rgba(0,0,0,.18); cursor: pointer; font-size: 12px; font-weight: 600; transition: background .18s ease, transform .18s ease; }
 .save-button:hover { transform: translateY(-1px); background: #315e39; }

@@ -9,6 +9,7 @@ const DEFAULT_TREE = {
     branches: [],
     coconuts: [],
     leaves: [],
+    driedFronds: [],
     rotation: { x: 0, y: 0, z: 0 },
     scale: { x: 1, y: 1, z: 1 },
     move: { x: 0, y: 25, z: 0 },
@@ -91,6 +92,15 @@ export default class TreeCompiler {
                         droop: number(data.leafDroop, 0.85, 0, 1.8),
                         height: number(data.leafHeight, 0.94, 0.65, 0.99),
                         color: ["green", "lime", "yellow"].includes(data.leafColor) ? data.leafColor : "green",
+                    });
+                    break;
+                case "dryfrond":
+                    tree.driedFronds.push({
+                        count: number(data.dryFrondCount, 7, 1, 20),
+                        length: number(data.dryFrondLength, 6, 2, 16),
+                        thickness: number(data.dryFrondThickness, 0.12, 0.03, 0.35),
+                        droop: number(data.dryFrondDroop, 1, 0.2, 2.2),
+                        color: ["golden", "brown", "mixed"].includes(data.dryFrondColor) ? data.dryFrondColor : "mixed",
                     });
                     break;
                 case "rotate":
