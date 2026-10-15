@@ -110,6 +110,24 @@ export default function App() {
         }
     }, [exportGLB, projectPath]);
 
+    const exportUnrealLods = useCallback(async () => {
+        if (!exportGLB) {
+            setExportStatus("3D view is still loading");
+            return;
+        }
+        setFileMenuOpen(false);
+        setExportStatus("Building Unreal FBX LODs…");
+        const projectName = projectPath?.split(/[\\/]/).at(-1).replace(/\.opentree$/i, "");
+        try {
+            await exportGLB(`${projectName || "opentree"}.glb`, true);
+            setExportStatus("Unreal FBX LOD files exported");
+            window.setTimeout(() => setExportStatus(""), 5000);
+        } catch (error) {
+            console.error("Impossible d’exporter les LOD FBX Unreal :", error);
+            setExportStatus("Unreal FBX LOD export failed");
+        }
+    }, [exportGLB, projectPath]);
+
     useEffect(() => {
         if (!projectPath || screen !== "editor") return undefined;
         setSaveStatus("pending");
@@ -158,6 +176,7 @@ export default function App() {
                 <button className="file-menu-trigger" aria-haspopup="menu" aria-expanded={fileMenuOpen} onClick={() => setFileMenuOpen((open) => !open)}>File <span>⌄</span></button>
                 {fileMenuOpen && <div className="file-menu" role="menu">
                     <button role="menuitem" onClick={exportTree}><span>⇧</span><span>Export as GLB<small>Binary glTF · .glb</small></span></button>
+                    <button role="menuitem" onClick={exportUnrealLods}><span>⇧</span><span>Export Unreal FBX LODs<small>LOD0, LOD1 and LOD2 · .fbx</small></span></button>
                 </div>}
             </div>
             <div className="file-menu-wrap">
