@@ -4,6 +4,7 @@ const TreeContext = createContext(null);
 export const DEFAULT_TREE = {
     seed: 1, trunklength: 50, trunkradius: 2, trunkate: 30, subdivisions: 5,
     randomPercentage: 0, randomCoefficient: 1,
+    collisionSegments: 8, collisionRadiusScale: 1.08,
     branches: [],
     coconuts: [],
     leaves: [],

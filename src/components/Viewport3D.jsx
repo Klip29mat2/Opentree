@@ -6,6 +6,7 @@ import * as THREE from "three";
 import { GLTFExporter } from "three/examples/jsm/exporters/GLTFExporter.js";
 import { FBXExporter } from "@comfyorg/fbx-exporter-three";
 import { createUnrealLodScene } from "../Engine/UnrealLodBuilder.js";
+import { createTrunkCollisionGroup, createUnrealCollisionGroup, getCollisionComplexity } from "../Engine/CollisionBuilder.js";
 
 function createTubeGeometry(curve, radiusAt, tubularSegments, radialSegments, radialNoise = 0) {
     const frames = curve.computeFrenetFrames(tubularSegments, false);
@@ -432,6 +433,73 @@ function DriedFrondMeshes({ tree, curve, wireframe }) {
     );
 }
 
+function TrunkCollisionMeshes({ curve, tree, visible }) {
+    const collisionGroup = useMemo(
+        () => createTrunkCollisionGroup(curve, tree),
+        [curve, tree.collisionRadiusScale, tree.collisionSegments, tree.trunkradius, tree.trunkate],
+    );
+
+    useEffect(() => () => {
+        collisionGroup.traverse((object) => {
+            object.geometry?.dispose();
+            if (object.isMesh) {
+                if (Array.isArray(object.material)) object.material.forEach((material) => material.dispose());
+                else object.material?.dispose();
+            }
+        });
+    }, [collisionGroup]);
+
+    return <primitive object={collisionGroup} visible={visible} dispose={null} />;
+}
+
+function CollisionPreview({ treeRef, visible }) {
+    const { tree } = useTree();
+    const [previewRoot, setPreviewRoot] = useState(null);
+
+    useEffect(() => {
+        setPreviewRoot(null);
+        if (!visible || !treeRef.current) return undefined;
+
+        const sourceRoot = treeRef.current;
+        sourceRoot.updateMatrixWorld(true);
+        const sourceCollision = sourceRoot.children.find((child) => child.userData.isCollisionGroup);
+        if (!sourceCollision) return undefined;
+
+        const root = new THREE.Group();
+        root.name = "OpenTree_CollisionPreview";
+        root.matrixAutoUpdate = false;
+        root.matrix.copy(sourceRoot.matrixWorld);
+        root.matrixWorldNeedsUpdate = true;
+        const collision = sourceCollision.clone(true);
+        collision.visible = true;
+        const material = new THREE.MeshStandardMaterial({
+            color: 0xf08a68,
+            roughness: 1,
+            transparent: true,
+            opacity: 0.34,
+            depthWrite: false,
+            wireframe: true,
+        });
+        collision.traverse((object) => {
+            if (!object.isMesh || !object.userData.isCollision) return;
+            object.geometry = object.geometry.clone();
+            object.material = material;
+            object.castShadow = false;
+            object.receiveShadow = false;
+        });
+        root.add(collision);
+        setPreviewRoot(root);
+
+        return () => {
+            root.traverse((object) => object.geometry?.dispose());
+            root.clear();
+            material.dispose();
+        };
+    }, [tree, treeRef, visible]);
+
+    return previewRoot ? <primitive object={previewRoot} dispose={null} /> : null;
+}
+
 function TreeModel({ treeRef, wireframe, visible = true }) {
 
     const { tree } = useTree();
@@ -556,7 +624,6 @@ function TreeModel({ treeRef, wireframe, visible = true }) {
         <group
             ref={treeRef}
             name="OpenTree"
-            visible={visible}
             position={[
                 tree.move.x,
                 tree.move.y,
@@ -574,14 +641,18 @@ function TreeModel({ treeRef, wireframe, visible = true }) {
             ]}
         >
 
-            <mesh geometry={trunkGeometry} castShadow receiveShadow>
-                <meshStandardMaterial map={barkTexture} roughness={0.88} wireframe={wireframe} />
-            </mesh>
+            <TrunkCollisionMeshes curve={trunkCurve} tree={tree} visible={false} />
 
-            <BranchMeshes tree={tree} curve={trunkCurve} texture={barkTexture} wireframe={wireframe} />
-            <CoconutMeshes tree={tree} curve={trunkCurve} wireframe={wireframe} />
-            <LeafMeshes tree={tree} curve={trunkCurve} wireframe={wireframe} />
-            <DriedFrondMeshes tree={tree} curve={trunkCurve} wireframe={wireframe} />
+            <group visible={visible} name="OpenTree_RenderMeshes">
+                <mesh geometry={trunkGeometry} castShadow receiveShadow>
+                    <meshStandardMaterial map={barkTexture} roughness={0.88} wireframe={wireframe} />
+                </mesh>
+
+                <BranchMeshes tree={tree} curve={trunkCurve} texture={barkTexture} wireframe={wireframe} />
+                <CoconutMeshes tree={tree} curve={trunkCurve} wireframe={wireframe} />
+                <LeafMeshes tree={tree} curve={trunkCurve} wireframe={wireframe} />
+                <DriedFrondMeshes tree={tree} curve={trunkCurve} wireframe={wireframe} />
+            </group>
 
         </group>
     );
@@ -600,7 +671,7 @@ function GLBExportBridge({ treeRef, onReady, onValidateReady }) {
             let meshCount = 0;
             let triangleCount = 0;
             root.traverse((object) => {
-                if (!object.isMesh) return;
+                if (!object.isMesh || object.userData.isCollision) return;
                 meshCount += 1;
                 const geometry = object.geometry;
                 const positions = geometry?.getAttribute("position");
@@ -649,6 +720,14 @@ function GLBExportBridge({ treeRef, onReady, onValidateReady }) {
             report.summary.push(`${meshCount} mesh${meshCount > 1 ? "es" : ""} · ${Math.round(triangleCount).toLocaleString("fr-FR")} triangles`);
 
             if (kind === "unreal" && report.errors.length === 0) {
+                const collisionStats = getCollisionComplexity(root);
+                report.collisionStats = collisionStats;
+                if (collisionStats.primitives === 0) {
+                    report.errors.push("Aucun collider de tronc n’a été généré pour l’export Unreal.");
+                } else {
+                    report.summary.push(`Collision : ${collisionStats.primitives} primitives convexes · ${collisionStats.triangles.toLocaleString("fr-FR")} triangles · ${collisionStats.vertices.toLocaleString("fr-FR")} sommets`);
+                    report.summary.push("Import Unreal : activer « Import Collision » et « Import Collision According to Mesh Name ».");
+                }
                 for (const [level, ratio] of [["LOD 0", 1], ["LOD 1", 0.55], ["LOD 2", 0.4]]) {
                     let lodScene;
                     try {
@@ -684,6 +763,7 @@ function GLBExportBridge({ treeRef, onReady, onValidateReady }) {
             root.name = "OpenTree";
             root.visible = true;
             root.traverse((object) => {
+                if (object.name === "OpenTree_RenderMeshes") object.visible = true;
                 if (!object.isMesh) return;
                 const exportMaterial = (material) => {
                     const clone = material.clone();
@@ -706,6 +786,11 @@ function GLBExportBridge({ treeRef, onReady, onValidateReady }) {
             };
 
             if (!unrealLods) {
+                const collisionGroups = [];
+                root.traverse((object) => {
+                    if (object.userData.isCollisionGroup) collisionGroups.push(object);
+                });
+                collisionGroups.forEach((object) => object.parent?.remove(object));
                 await download(root, filename || "opentree.glb");
                 return;
             }
@@ -713,22 +798,35 @@ function GLBExportBridge({ treeRef, onReady, onValidateReady }) {
             const baseName = (filename || "opentree.glb").replace(/\.(glb|fbx)$/i, "");
             const buildLod = async (lod, ratio) => {
                 const lodRoot = createUnrealLodScene(root, ratio);
-                const bytes = await new FBXExporter().parseAsync(lodRoot, {
-                    preset: "unreal",
-                    version: 7500,
-                    embedTextures: true,
-                    includeAnimations: false,
-                    onlyVisible: true,
-                    creator: "OpenTree",
-                });
-                const url = URL.createObjectURL(new Blob([bytes], { type: "application/octet-stream" }));
-                const link = document.createElement("a");
-                link.href = url;
-                link.download = `${baseName}_${lod}.fbx`;
-                link.click();
-                window.setTimeout(() => URL.revokeObjectURL(url), 1000);
-                lodRoot.traverse((object) => object.geometry?.dispose());
-                lodRoot.clear();
+                const collisionGroup = lod === "LOD0" ? createUnrealCollisionGroup(root) : null;
+                if (collisionGroup) lodRoot.add(collisionGroup);
+                try {
+                    const bytes = await new FBXExporter().parseAsync(lodRoot, {
+                        preset: "unreal",
+                        version: 7500,
+                        embedTextures: true,
+                        includeAnimations: false,
+                        onlyVisible: true,
+                        creator: "OpenTree",
+                    });
+                    const url = URL.createObjectURL(new Blob([bytes], { type: "application/octet-stream" }));
+                    const link = document.createElement("a");
+                    link.href = url;
+                    link.download = `${baseName}_${lod}.fbx`;
+                    link.click();
+                    window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+                } finally {
+                    const collisionMaterials = new Set();
+                    lodRoot.traverse((object) => {
+                        object.geometry?.dispose();
+                        if (object.userData.isCollision) {
+                            const materials = Array.isArray(object.material) ? object.material : [object.material];
+                            materials.forEach((material) => material && collisionMaterials.add(material));
+                        }
+                    });
+                    collisionMaterials.forEach((material) => material.dispose());
+                    lodRoot.clear();
+                }
             };
             await buildLod("LOD0", 1);
             await buildLod("LOD1", 0.55);
@@ -804,7 +902,7 @@ function PolygonStatsBridge({ treeRef, onTriangleCount }) {
         if (!root) return;
         let triangles = 0;
         root.traverse((object) => {
-            if (!object.isMesh || !object.geometry) return;
+            if (!object.isMesh || object.userData.isCollision || !object.geometry) return;
             const geometry = object.geometry;
             triangles += (geometry.index?.count ?? geometry.getAttribute("position")?.count ?? 0) / 3;
         });
@@ -851,7 +949,7 @@ function Ground({ visible }) {
 }
 
 
-export default function Viewport3D({ onExportReady, onValidateReady, onTriangleCount, wireframe, showGrid, showShadows }) {
+export default function Viewport3D({ onExportReady, onValidateReady, onTriangleCount, wireframe, showGrid, showShadows, showCollision }) {
     const treeRef = useRef(null);
     const [previewLod, setPreviewLod] = useState(0);
     const [previewError, setPreviewError] = useState("");
@@ -900,7 +998,8 @@ export default function Viewport3D({ onExportReady, onValidateReady, onTriangleC
 
             <directionalLight position={[30, 24, -35]} intensity={0.55} />
 
-            <TreeModel treeRef={treeRef} wireframe={wireframe} visible={false} />
+            <TreeModel treeRef={treeRef} wireframe={wireframe} visible={previewLod === 0} />
+            <CollisionPreview treeRef={treeRef} visible={showCollision} />
             <UnrealLodPreview treeRef={treeRef} level={previewLod} onError={handlePreviewError} onStats={handlePreviewStats} />
             <GLBExportBridge treeRef={treeRef} onReady={onExportReady} onValidateReady={onValidateReady} />
             <PolygonStatsBridge treeRef={treeRef} onTriangleCount={onTriangleCount} />

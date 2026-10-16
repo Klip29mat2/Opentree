@@ -37,7 +37,7 @@ export function createUnrealLodScene(root, ratio) {
     };
 
     root.traverse((object) => {
-        if (!object.isMesh || !object.geometry?.getAttribute("position")) return;
+        if (!object.isMesh || object.userData.isCollision || !object.geometry?.getAttribute("position")) return;
         const sourceMaterials = Array.isArray(object.material) ? object.material : [object.material];
         const sourceGeometry = object.geometry;
         const groups = sourceGeometry.groups.length ? sourceGeometry.groups : [{ start: 0, count: sourceGeometry.index?.count ?? sourceGeometry.getAttribute("position").count, materialIndex: 0 }];

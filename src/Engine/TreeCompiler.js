@@ -6,6 +6,8 @@ const DEFAULT_TREE = {
     subdivisions: 5,
     randomPercentage: 0,
     randomCoefficient: 1,
+    collisionSegments: 8,
+    collisionRadiusScale: 1.08,
     branches: [],
     coconuts: [],
     leaves: [],
@@ -62,6 +64,10 @@ export default class TreeCompiler {
                     tree.trunkradius = number(data.trunkradius, tree.trunkradius, 0.05, 20);
                     break;
                 case "trunkate": tree.trunkate = number(data.trunkate, tree.trunkate, 0, 100); break;
+                case "collision":
+                    tree.collisionSegments = number(data.collisionSegments, tree.collisionSegments, 1, 24);
+                    tree.collisionRadiusScale = number(data.collisionRadiusScale, tree.collisionRadiusScale, 0.75, 1.5);
+                    break;
                 case "subdivide": tree.subdivisions = number(data.subdivisions, tree.subdivisions, 1, 100); break;
                 case "randomize":
                     tree.randomPercentage = number(data.randomPercentage, tree.randomPercentage, 0, 100);
