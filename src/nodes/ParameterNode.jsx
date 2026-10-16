@@ -14,15 +14,16 @@ const fields = {
     move: [["x", "Move X", -1000, 1000, 0.1], ["y", "Move Y", -1000, 1000, 0.1], ["z", "Move Z", -1000, 1000, 0.1]],
     trunkate: [["trunkate", "Taper (%)", 0, 100, 1]],
     collision: [["collisionSegments", "Trunk segments", 1, 24, 1], ["collisionRadiusScale", "Radius multiplier", 0.75, 1.5, 0.05]],
+    wind: [["windStrength", "Strength", 0, 1, 0.01], ["windSpeed", "Speed", 0.1, 3, 0.05], ["windDirection", "Direction (°)", -180, 180, 1], ["windGust", "Gust variation", 0, 1, 0.01]],
 };
 const selects = {
     coconut: { key: "coconutColor", label: "Ripeness", options: [["mature", "Mature · brown"], ["yellow", "Yellow"]] },
     leaf: { key: "leafColor", label: "Leaf color", options: [["green", "Palm green"], ["lime", "Lime green"], ["yellow", "Yellow green"]] },
     dryfrond: { key: "dryFrondColor", label: "Dry color", options: [["mixed", "Natural mix"], ["golden", "Golden straw"], ["brown", "Dry brown"]] },
 };
-const titles = { seed: "🌱 Seed", trunk: "🌳 Trunk", rotate: "🔄 Rotate", scale: "📐 Scale", subdivide: "⚛️ Subdivide", randomize: "🎲 Randomize", move: "↔️ Move", trunkate: "✂️ Taper", branch: "🌿 Branch", coconut: "🥥 Coconut", leaf: "🌴 Leaf", dryfrond: "🍂 Dry frond", collision: "⬡ Collision", output: "📤 Output" };
-const accents = { seed: "#91c99a", trunk: "#bd9465", rotate: "#9ab9bf", scale: "#91c1ca", subdivide: "#b49ac7", randomize: "#d9b97d", move: "#91c1ca", trunkate: "#ce9a6a", branch: "#91c99a", coconut: "#d9b96b", leaf: "#a8d79d", dryfrond: "#ba8b56", collision: "#ee906e", output: "#9bb6a0" };
-const defaults = { seed: 1, trunklength: 50, trunkradius: 2, subdivisions: 5, randomPercentage: 0, randomCoefficient: 1, collisionSegments: 8, collisionRadiusScale: 1.08, branchCount: 6, branchLength: 12, branchRadius: 0.35, branchAngle: 38, branchStartHeight: 0.25, coconutCount: 3, coconutSize: 1.2, coconutHeight: 0.9, coconutColor: "mature", leafCount: 8, leafLength: 18, leafWidth: 0.55, leafDroop: 0.85, leafHeight: 0.94, leafColor: "green", dryFrondCount: 7, dryFrondLength: 6, dryFrondThickness: 0.12, dryFrondDroop: 1, dryFrondColor: "mixed", trunkate: 30, x: 0, y: 0, z: 0 };
+const titles = { seed: "🌱 Seed", trunk: "🌳 Trunk", rotate: "🔄 Rotate", scale: "📐 Scale", subdivide: "⚛️ Subdivide", randomize: "🎲 Randomize", move: "↔️ Move", trunkate: "✂️ Taper", branch: "🌿 Branch", coconut: "🥥 Coconut", leaf: "🌴 Leaf", dryfrond: "🍂 Dry frond", collision: "⬡ Collision", wind: "💨 Wind", output: "📤 Output" };
+const accents = { seed: "#91c99a", trunk: "#bd9465", rotate: "#9ab9bf", scale: "#91c1ca", subdivide: "#b49ac7", randomize: "#d9b97d", move: "#91c1ca", trunkate: "#ce9a6a", branch: "#91c99a", coconut: "#d9b96b", leaf: "#a8d79d", dryfrond: "#ba8b56", collision: "#ee906e", wind: "#8bc5d3", output: "#9bb6a0" };
+const defaults = { seed: 1, trunklength: 50, trunkradius: 2, subdivisions: 5, randomPercentage: 0, randomCoefficient: 1, collisionSegments: 8, collisionRadiusScale: 1.08, windStrength: 0.4, windSpeed: 0.8, windDirection: 0, windGust: 0.2, branchCount: 6, branchLength: 12, branchRadius: 0.35, branchAngle: 38, branchStartHeight: 0.25, coconutCount: 3, coconutSize: 1.2, coconutHeight: 0.9, coconutColor: "mature", leafCount: 8, leafLength: 18, leafWidth: 0.55, leafDroop: 0.85, leafHeight: 0.94, leafColor: "green", dryFrondCount: 7, dryFrondLength: 6, dryFrondThickness: 0.12, dryFrondDroop: 1, dryFrondColor: "mixed", trunkate: 30, x: 0, y: 0, z: 0 };
 
 export default function ParameterNode({ id, type, data = {} }) {
     const entries = fields[type] ?? [];

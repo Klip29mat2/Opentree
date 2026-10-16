@@ -23,6 +23,7 @@ export default function App() {
     const [showGrid, setShowGrid] = useState(true);
     const [showShadows, setShowShadows] = useState(true);
     const [showCollision, setShowCollision] = useState(false);
+    const [showWind, setShowWind] = useState(false);
     const [triangleCount, setTriangleCount] = useState(0);
     const [exportStatus, setExportStatus] = useState("");
     const [exportGLB, setExportGLB] = useState(null);
@@ -174,7 +175,7 @@ export default function App() {
 
     if (screen === "home") return <StartMenu newProject={newProject} openProject={openProject} />;
     return <div className="editor-shell">
-        <Viewport3D onExportReady={registerGLBExporter} onValidateReady={registerExportValidator} onTriangleCount={setTriangleCount} wireframe={wireframe} showGrid={showGrid} showShadows={showShadows} showCollision={showCollision} />
+        <Viewport3D onExportReady={registerGLBExporter} onValidateReady={registerExportValidator} onTriangleCount={setTriangleCount} wireframe={wireframe} showGrid={showGrid} showShadows={showShadows} showCollision={showCollision} showWind={showWind} />
         <ReactFlow className="graph-pane" nodes={graphNodes} edges={edges} nodeTypes={nodeTypes} onNodesChange={onNodesChange} onEdgesChange={onEdgesChange} onConnect={onConnect} onInit={(instance) => { flowInstance.current = instance; }} deleteKeyCode={["Backspace", "Delete"]} snapToGrid snapGrid={[20, 20]} fitView colorMode="dark">
             <Background color="#333" gap={20} /><Controls />
         </ReactFlow>
@@ -194,6 +195,7 @@ export default function App() {
                     <button role="menuitemcheckbox" aria-checked={showGrid} onClick={() => setShowGrid((visible) => !visible)}><span>{showGrid ? "☑" : "□"}</span><span>Ground grid<small>Show or hide the ground</small></span></button>
                     <button role="menuitemcheckbox" aria-checked={showShadows} onClick={() => setShowShadows((enabled) => !enabled)}><span>{showShadows ? "☑" : "□"}</span><span>Shadows<small>Enable or disable shadows</small></span></button>
                     <button role="menuitemcheckbox" aria-checked={showCollision} onClick={() => setShowCollision((visible) => !visible)}><span>{showCollision ? "☑" : "□"}</span><span>Collision preview<small>Show generated trunk colliders</small></span></button>
+                    <button role="menuitemcheckbox" aria-checked={showWind} onClick={() => setShowWind((enabled) => !enabled)}><span>{showWind ? "☑" : "□"}</span><span>Wind preview<small>Animate the tree with wind</small></span></button>
                     <div className="view-menu-stat">{triangleCount.toLocaleString("en-US")} triangles</div>
                 </div>}
             </div>

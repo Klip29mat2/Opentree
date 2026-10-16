@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Canvas } from "@react-three/fiber";
+import { Canvas, useFrame } from "@react-three/fiber";
 import { OrbitControls, useTexture } from "@react-three/drei";
 import { useTree } from "../context/TreeContext.jsx";
 import * as THREE from "three";
@@ -8,11 +8,12 @@ import { FBXExporter } from "@comfyorg/fbx-exporter-three";
 import { createUnrealLodScene } from "../Engine/UnrealLodBuilder.js";
 import { createTrunkCollisionGroup, createUnrealCollisionGroup, getCollisionComplexity } from "../Engine/CollisionBuilder.js";
 
-function createTubeGeometry(curve, radiusAt, tubularSegments, radialSegments, radialNoise = 0) {
+function createTubeGeometry(curve, radiusAt, tubularSegments, radialSegments, radialNoise = 0, windWeightAt = () => 0) {
     const frames = curve.computeFrenetFrames(tubularSegments, false);
     const length = curve.getLength();
     const positions = [];
     const uvs = [];
+    const windUvs = [];
     const indices = [];
 
     for (let ring = 0; ring <= tubularSegments; ring += 1) {
@@ -27,6 +28,7 @@ function createTubeGeometry(curve, radiusAt, tubularSegments, radialSegments, ra
             const vertex = center.clone().addScaledVector(normal, radius * wobble);
             positions.push(vertex.x, vertex.y, vertex.z);
             uvs.push(side / radialSegments, progress * length / 6);
+            windUvs.push(THREE.MathUtils.clamp(windWeightAt(progress), 0, 1), 0);
         }
     }
 
@@ -44,6 +46,7 @@ function createTubeGeometry(curve, radiusAt, tubularSegments, radialSegments, ra
         const centerIndex = positions.length / 3;
         positions.push(center.x, center.y, center.z);
         uvs.push(0.5, 0.5);
+        windUvs.push(THREE.MathUtils.clamp(windWeightAt(progress), 0, 1), 0);
         const rimStart = positions.length / 3;
         const radius = radiusAt(progress);
         for (let side = 0; side < radialSegments; side += 1) {
@@ -54,6 +57,7 @@ function createTubeGeometry(curve, radiusAt, tubularSegments, radialSegments, ra
             const vertex = center.clone().addScaledVector(normal, radius * wobble);
             positions.push(vertex.x, vertex.y, vertex.z);
             uvs.push(0.5 + Math.cos(around) * 0.5, 0.5 + Math.sin(around) * 0.5);
+            windUvs.push(THREE.MathUtils.clamp(windWeightAt(progress), 0, 1), 0);
         }
         for (let side = 0; side < radialSegments; side += 1) {
             const current = rimStart + side;
@@ -68,6 +72,7 @@ function createTubeGeometry(curve, radiusAt, tubularSegments, radialSegments, ra
     const geometry = new THREE.BufferGeometry();
     geometry.setAttribute("position", new THREE.Float32BufferAttribute(positions, 3));
     geometry.setAttribute("uv", new THREE.Float32BufferAttribute(uvs, 2));
+    geometry.setAttribute("uv1", new THREE.Float32BufferAttribute(windUvs, 2));
     geometry.setIndex(indices);
     geometry.computeVertexNormals();
     return geometry;
@@ -116,7 +121,7 @@ function BranchMeshes({ tree, curve, texture, wireframe }) {
                     start.clone().addScaledVector(direction, length * 0.72).addScaledVector(tangent, length * 0.04),
                     end,
                 ]);
-                const geometry = createTubeGeometry(branchCurve, (t) => Number(config.radius) * (1 - t * 0.9), 14, 9, 0.025);
+                const geometry = createTubeGeometry(branchCurve, (t) => Number(config.radius) * (1 - t * 0.9), 14, 9, 0.025, (t) => 0.04 + t * 0.16);
 
                 result.push({
                     key: `${configIndex}-${index}`,
@@ -128,7 +133,7 @@ function BranchMeshes({ tree, curve, texture, wireframe }) {
     }, [branches, curve, tree.seed, tree.trunkradius, tree.trunkate]);
 
     return meshes.map((branch) => (
-        <mesh key={branch.key} geometry={branch.geometry} castShadow receiveShadow>
+        <mesh key={branch.key} name={`OpenTree_Branch_${branch.key}`} geometry={branch.geometry} castShadow receiveShadow>
             <meshStandardMaterial map={texture} wireframe={wireframe} />
         </mesh>
     ));
@@ -142,6 +147,12 @@ function CoconutMeshes({ tree, curve, wireframe }) {
         loadedCoconutTexture.needsUpdate = true;
         return loadedCoconutTexture;
     }, [loadedCoconutTexture]);
+    const coconutGeometry = useMemo(() => {
+        const geometry = new THREE.SphereGeometry(1, 20, 16);
+        const count = geometry.getAttribute("position").count;
+        geometry.setAttribute("uv1", new THREE.Float32BufferAttribute(new Float32Array(count * 2), 2));
+        return geometry;
+    }, []);
     const fruits = useMemo(() => {
         const result = [];
         const goldenAngle = Math.PI * (3 - Math.sqrt(5));
@@ -178,8 +189,8 @@ function CoconutMeshes({ tree, curve, wireframe }) {
     }, [clusters, curve, tree.seed, tree.trunkradius, tree.trunkate]);
 
     return fruits.map((fruit) => (
-        <mesh key={fruit.key} position={fruit.position} quaternion={fruit.quaternion} scale={[fruit.size * 0.58, fruit.size * 0.78, fruit.size * 0.58]} castShadow receiveShadow>
-            <sphereGeometry args={[1, 20, 16]} />
+        <mesh key={fruit.key} name={`OpenTree_Coconut_${fruit.key}`} position={fruit.position} quaternion={fruit.quaternion} scale={[fruit.size * 0.58, fruit.size * 0.78, fruit.size * 0.58]} castShadow receiveShadow>
+            <primitive object={coconutGeometry} attach="geometry" />
             <meshStandardMaterial map={fruit.textured ? coconutTexture : null} color={fruit.color} roughness={0.88} wireframe={wireframe} />
         </mesh>
     ));
@@ -188,9 +199,10 @@ function CoconutMeshes({ tree, curve, wireframe }) {
 function createFrondGeometry(config) {
     const vertices = [];
     const colors = [];
+    const windUvs = [];
     const indices = [];
     const section = [-1, -0.5, 0, 0.5, 1];
-    const addBlade = (centers, axes, widths, shade = 1, bulge = 0.06) => {
+    const addBlade = (centers, axes, widths, shade = 1, bulge = 0.06, windWeightAt = () => 0) => {
         const first = vertices.length / 3;
         centers.forEach((center, row) => {
             const previous = centers[Math.max(0, row - 1)];
@@ -207,6 +219,7 @@ function createFrondGeometry(config) {
                 vertices.push(point.x, point.y, point.z);
                 const vertexShade = Math.min(1, shade * alongShade * (across === 0 ? 0.94 : 1));
                 colors.push(vertexShade, vertexShade, vertexShade);
+                windUvs.push(THREE.MathUtils.clamp(windWeightAt(row / Math.max(1, centers.length - 1), across), 0, 1), 0);
             });
         });
         for (let row = 0; row < centers.length - 1; row += 1) {
@@ -235,7 +248,7 @@ function createFrondGeometry(config) {
         rachisAxes.push(new THREE.Vector3(0, 0, 1));
         rachisWidths.push(Math.max(0.018, config.width * 0.1 * (1 - progress * 0.65)));
     }
-    addBlade(rachisCenters, rachisAxes, rachisWidths, 0.42, 0.12);
+    addBlade(rachisCenters, rachisAxes, rachisWidths, 0.42, 0.12, (t) => 0.04 + Math.pow(t, 1.2) * 0.96);
 
     for (let index = 0; index < 22; index += 1) {
         const progress = 0.09 + index * 0.039 + (random() - 0.5) * 0.012;
@@ -257,20 +270,23 @@ function createFrondGeometry(config) {
             ).normalize());
             const width = config.width * (1 - progress * 0.48) * (0.82 + random() * 0.24);
             const shade = 0.78 + random() * 0.28;
-            addBlade(centers, axes, [0, width * 0.64, width, width * 0.54, 0], shade);
+            addBlade(centers, axes, [0, width * 0.64, width, width * 0.54, 0], shade, 0.06,
+                (station) => 0.08 + 0.72 * progress + 0.2 * station);
         }
     }
 
     const geometry = new THREE.BufferGeometry();
     geometry.setAttribute("position", new THREE.Float32BufferAttribute(vertices, 3));
     geometry.setAttribute("color", new THREE.Float32BufferAttribute(colors, 3));
+    geometry.setAttribute("uv1", new THREE.Float32BufferAttribute(windUvs, 2));
     geometry.setIndex(indices);
     geometry.computeVertexNormals();
     return geometry;
 }
 
-function LeafMeshes({ tree, curve, wireframe }) {
+function LeafMeshes({ tree, curve, wireframe, windEnabled }) {
     const configs = tree.leaves ?? [];
+    const frondRefs = useRef(new Map());
     const fronds = useMemo(() => {
         const result = [];
         const colors = { green: "#286b35", lime: "#64a83c", yellow: "#a7a83d" };
@@ -304,23 +320,61 @@ function LeafMeshes({ tree, curve, wireframe }) {
                     position,
                     rotation,
                     color: colors[config.color] ?? colors.green,
+                    phase: random() * Math.PI * 2,
+                    flexibility: 0.72 + random() * 0.56,
                 });
             }
         });
         return result;
     }, [configs, curve, tree.seed]);
 
+    useFrame(({ clock }) => {
+        const time = clock.elapsedTime * (tree.windSpeed ?? 0.8);
+        const strength = windEnabled ? (tree.windStrength ?? 0.4) : 0;
+        const gust = tree.windGust ?? 0.2;
+        const direction = (tree.windDirection ?? 0) * Math.PI / 180;
+        fronds.forEach((frond) => {
+            const pivot = frondRefs.current.get(frond.key);
+            if (!pivot) return;
+            const base = pivot.userData.windRestRotation ?? [0, 0, 0];
+            if (strength <= 0) {
+                pivot.rotation.set(...base);
+                return;
+            }
+            const gustFactor = 1 + Math.sin(time * 0.37 + frond.phase * 0.2) * gust * 0.28;
+            const wave = Math.sin(time + frond.phase) * strength * frond.flexibility * gustFactor;
+            const amplitude = Math.min(0.32, wave * 0.32);
+            pivot.rotation.set(base[0] + amplitude * Math.cos(direction), base[1], base[2] + amplitude * Math.sin(direction));
+        });
+    });
+
     return fronds.map((frond) => (
-        <mesh key={frond.key} geometry={frond.geometry} position={frond.position} quaternion={frond.rotation} castShadow>
-            <meshStandardMaterial color={frond.color} vertexColors side={THREE.DoubleSide} roughness={0.88} wireframe={wireframe} />
-        </mesh>
+        <group
+            key={frond.key}
+            name={`OpenTree_Frond_${frond.key}`}
+            ref={(pivot) => {
+                if (pivot) {
+                    frondRefs.current.set(frond.key, pivot);
+                    pivot.userData.windRestRotation = [pivot.rotation.x, pivot.rotation.y, pivot.rotation.z];
+                } else frondRefs.current.delete(frond.key);
+            }}
+            position={frond.position}
+            userData={{ windAnimated: true, windRestRotation: [0, 0, 0] }}
+        >
+            <mesh geometry={frond.geometry} quaternion={frond.rotation} castShadow>
+                <meshStandardMaterial color={frond.color} vertexColors side={THREE.DoubleSide} roughness={0.88} wireframe={wireframe} />
+            </mesh>
+        </group>
     ));
 }
 
-function DriedFrondMeshes({ tree, curve, wireframe }) {
+function DriedFrondMeshes({ tree, curve, wireframe, windEnabled }) {
+    const pivotRef = useRef(null);
+    const pivot = useMemo(() => curve.getPointAt(0.88), [curve]);
     const geometry = useMemo(() => {
         const positions = [];
         const colors = [];
+        const windUvs = [];
         const indices = [];
         let state = ((Number(tree.seed) >>> 0) ^ 0xc2b2ae35) || 1;
         const random = () => {
@@ -329,12 +383,14 @@ function DriedFrondMeshes({ tree, curve, wireframe }) {
             state ^= state << 5;
             return (state >>> 0) / 4294967296;
         };
-        const appendFiber = (fiberCurve, radius, color) => {
-            const fiber = createTubeGeometry(fiberCurve, (t) => radius * (1 - t * 0.94), 8, 5, 0.012);
+        const appendFiber = (fiberCurve, radius, color, windWeightAt) => {
+            const fiber = createTubeGeometry(fiberCurve, (t) => radius * (1 - t * 0.94), 8, 5, 0.012, windWeightAt);
             const offset = positions.length / 3;
             const fiberPositions = fiber.getAttribute("position");
+            const fiberWind = fiber.getAttribute("uv1");
             for (let index = 0; index < fiberPositions.count; index += 1) {
                 positions.push(fiberPositions.getX(index), fiberPositions.getY(index), fiberPositions.getZ(index));
+                windUvs.push(fiberWind.getX(index), fiberWind.getY(index));
                 const luminance = color.r * 0.2126 + color.g * 0.7152 + color.b * 0.0722;
                 const shade = Math.min(1, 0.72 + luminance * 0.6) * (0.9 + random() * 0.1);
                 colors.push(shade, shade, shade);
@@ -393,7 +449,7 @@ function DriedFrondMeshes({ tree, curve, wireframe }) {
                     start.clone().addScaledVector(radial, length * 0.7).addScaledVector(tangent, -length * 0.82 * droop).addScaledVector(side, sway),
                 ]);
                 const rachisColor = new THREE.Color(palette[configIndex % palette.length]).multiplyScalar(0.78);
-                appendFiber(rachis, thickness * (0.88 + random() * 0.24), rachisColor);
+                appendFiber(rachis, thickness * (0.88 + random() * 0.24), rachisColor, (t) => 0.03 + Math.pow(t, 1.35) * 0.65);
 
                 for (let strand = 0; strand < 6; strand += 1) {
                     const along = 0.2 + strand * 0.125 + (random() - 0.5) * 0.035;
@@ -413,7 +469,7 @@ function DriedFrondMeshes({ tree, curve, wireframe }) {
                         filamentEnd,
                     ]);
                     const color = new THREE.Color(palette[Math.floor(random() * palette.length)]);
-                    appendFiber(filament, thickness * (0.34 + random() * 0.16), color);
+                    appendFiber(filament, thickness * (0.34 + random() * 0.16), color, (t) => 0.18 + t * 0.82);
                 }
             }
         });
@@ -421,16 +477,71 @@ function DriedFrondMeshes({ tree, curve, wireframe }) {
         const result = new THREE.BufferGeometry();
         result.setAttribute("position", new THREE.Float32BufferAttribute(positions, 3));
         result.setAttribute("color", new THREE.Float32BufferAttribute(colors, 3));
+        result.setAttribute("uv1", new THREE.Float32BufferAttribute(windUvs, 2));
         result.setIndex(indices);
         result.computeVertexNormals();
         return { geometry: result, color: `#${materialColor.getHexString()}` };
     }, [curve, tree.driedFronds, tree.leaves, tree.seed, tree.trunkradius, tree.trunkate]);
 
+    useFrame(({ clock }) => {
+        if (!pivotRef.current) return;
+        const group = pivotRef.current;
+        const base = group.userData.windRestRotation ?? [0, 0, 0];
+        if (!windEnabled || !(tree.windStrength > 0)) {
+            group.rotation.set(...base);
+            return;
+        }
+        const time = clock.elapsedTime * (tree.windSpeed ?? 0.8);
+        const direction = (tree.windDirection ?? 0) * Math.PI / 180;
+        const gustFactor = 1 + Math.sin(time * 0.31 + 1.7) * (tree.windGust ?? 0.2) * 0.28;
+        const sway = Math.sin(time * 0.82 + 1.7) * (tree.windStrength ?? 0.4) * 0.09 * gustFactor;
+        group.rotation.set(base[0] + sway * Math.cos(direction), base[1], base[2] + sway * Math.sin(direction));
+    });
+
     return (
-        <mesh geometry={geometry.geometry} castShadow receiveShadow>
-            <meshStandardMaterial color={geometry.color} vertexColors roughness={0.96} wireframe={wireframe} />
-        </mesh>
+        <group ref={pivotRef} position={pivot} userData={{ windAnimated: true, windRestRotation: [0, 0, 0] }}>
+            <mesh name="OpenTree_DryFronds" geometry={geometry.geometry} position={pivot.clone().negate()} castShadow receiveShadow>
+                <meshStandardMaterial color={geometry.color} vertexColors roughness={0.96} wireframe={wireframe} />
+            </mesh>
+        </group>
     );
+}
+
+function createWindTrunkMaterial(texture, wireframe) {
+    const material = new THREE.MeshStandardMaterial({ map: texture, roughness: 0.88, wireframe });
+    material.userData.windUniforms = {
+        uWindTime: { value: 0 },
+        uWindStrength: { value: 0 },
+        uWindDirection: { value: new THREE.Vector2(1, 0) },
+        uWindLength: { value: 50 },
+        uWindGust: { value: 0 },
+    };
+    material.onBeforeCompile = (shader) => {
+        Object.assign(shader.uniforms, material.userData.windUniforms);
+        shader.vertexShader = shader.vertexShader.replace(
+            "#include <common>",
+            "#include <common>\nuniform float uWindTime;\nuniform float uWindStrength;\nuniform vec2 uWindDirection;\nuniform float uWindLength;\nuniform float uWindGust;",
+        );
+        shader.vertexShader = shader.vertexShader.replace(
+            "#include <begin_vertex>",
+            `#include <begin_vertex>
+            float windHeight = clamp((position.y + uWindLength * 0.5) / max(uWindLength, 0.001), 0.0, 1.0);
+            float windGustFactor = 1.0 + sin(uWindTime * 0.37) * uWindGust * 0.28;
+            float trunkBend = sin(uWindTime + windHeight * 0.7) * uWindStrength * windGustFactor * windHeight * windHeight * uWindLength * 0.035;
+            transformed.xz += uWindDirection * trunkBend;`,
+        );
+    };
+    material.customProgramCacheKey = () => "opentree-trunk-wind-v1";
+    return material;
+}
+
+function resetWindPose(root) {
+    root.traverse((object) => {
+        if (!object.userData.windAnimated) return;
+        const [x, y, z] = object.userData.windRestRotation ?? [0, 0, 0];
+        object.rotation.set(x, y, z);
+    });
+    root.updateMatrixWorld(true);
 }
 
 function TrunkCollisionMeshes({ curve, tree, visible }) {
@@ -500,7 +611,7 @@ function CollisionPreview({ treeRef, visible }) {
     return previewRoot ? <primitive object={previewRoot} dispose={null} /> : null;
 }
 
-function TreeModel({ treeRef, wireframe, visible = true }) {
+function TreeModel({ treeRef, wireframe, visible = true, windEnabled = false }) {
 
     const { tree } = useTree();
 
@@ -530,6 +641,19 @@ function TreeModel({ treeRef, wireframe, visible = true }) {
         texture.needsUpdate = true;
         return texture;
     }, [texture]);
+    const trunkMaterial = useMemo(() => createWindTrunkMaterial(barkTexture, wireframe), [barkTexture, wireframe]);
+
+    useEffect(() => () => trunkMaterial.dispose(), [trunkMaterial]);
+
+    useFrame(({ clock }) => {
+        const uniforms = trunkMaterial.userData.windUniforms;
+        uniforms.uWindTime.value = clock.elapsedTime * (tree.windSpeed ?? 0.8);
+        uniforms.uWindStrength.value = windEnabled ? (tree.windStrength ?? 0.4) : 0;
+        uniforms.uWindLength.value = tree.trunklength;
+        uniforms.uWindGust.value = tree.windGust ?? 0.2;
+        const direction = ((tree.windDirection ?? 0) * Math.PI) / 180;
+        uniforms.uWindDirection.value.set(Math.cos(direction), Math.sin(direction));
+    });
 
 
     // Génération aléatoire stable
@@ -617,6 +741,7 @@ function TreeModel({ treeRef, wireframe, visible = true }) {
         Math.max(64, Math.min(512, subdivisions * 8)),
         24,
         0.008,
+        (progress) => 0.015 + progress * 0.065,
     ), [trunkCurve, tree.trunkradius, trunkate, subdivisions]);
 
 
@@ -644,14 +769,12 @@ function TreeModel({ treeRef, wireframe, visible = true }) {
             <TrunkCollisionMeshes curve={trunkCurve} tree={tree} visible={false} />
 
             <group visible={visible} name="OpenTree_RenderMeshes">
-                <mesh geometry={trunkGeometry} castShadow receiveShadow>
-                    <meshStandardMaterial map={barkTexture} roughness={0.88} wireframe={wireframe} />
-                </mesh>
+                <mesh name="OpenTree_Trunk" geometry={trunkGeometry} material={trunkMaterial} castShadow receiveShadow />
 
                 <BranchMeshes tree={tree} curve={trunkCurve} texture={barkTexture} wireframe={wireframe} />
                 <CoconutMeshes tree={tree} curve={trunkCurve} wireframe={wireframe} />
-                <LeafMeshes tree={tree} curve={trunkCurve} wireframe={wireframe} />
-                <DriedFrondMeshes tree={tree} curve={trunkCurve} wireframe={wireframe} />
+                <LeafMeshes tree={tree} curve={trunkCurve} wireframe={wireframe} windEnabled={windEnabled} />
+                <DriedFrondMeshes tree={tree} curve={trunkCurve} wireframe={wireframe} windEnabled={windEnabled} />
             </group>
 
         </group>
@@ -720,6 +843,39 @@ function GLBExportBridge({ treeRef, onReady, onValidateReady }) {
             report.summary.push(`${meshCount} mesh${meshCount > 1 ? "es" : ""} · ${Math.round(triangleCount).toLocaleString("fr-FR")} triangles`);
 
             if (kind === "unreal" && report.errors.length === 0) {
+                let windVertexCount = 0;
+                let minimumWindWeight = Infinity;
+                let maximumWindWeight = -Infinity;
+                let trunkMaximumWeight = 0;
+                let windMeshes = 0;
+                root.traverse((object) => {
+                    if (!object.isMesh || object.userData.isCollision || !object.geometry) return;
+                    windMeshes += 1;
+                    const positions = object.geometry.getAttribute("position");
+                    const weights = object.geometry.getAttribute("uv1");
+                    if (!weights || weights.count !== positions?.count) {
+                        report.errors.push(`${object.name || "Un mesh"} n’a pas de poids de vent valides en UV1.`);
+                        return;
+                    }
+                    windVertexCount += weights.count;
+                    let meshMaximum = 0;
+                    for (let vertex = 0; vertex < weights.count; vertex += 1) {
+                        const weight = weights.getX(vertex);
+                        if (!Number.isFinite(weight) || weight < 0 || weight > 1) {
+                            report.errors.push(`${object.name || "Un mesh"} contient un poids de vent hors de l’intervalle 0–1.`);
+                            continue;
+                        }
+                        minimumWindWeight = Math.min(minimumWindWeight, weight);
+                        maximumWindWeight = Math.max(maximumWindWeight, weight);
+                        meshMaximum = Math.max(meshMaximum, weight);
+                    }
+                    if (object.name === "OpenTree_Trunk") trunkMaximumWeight = meshMaximum;
+                });
+                if (windMeshes === 0) report.errors.push("Aucun mesh n’a été trouvé pour générer les poids de vent.");
+                if (windVertexCount > 0) {
+                    report.summary.push(`Poids de vent : ${windVertexCount.toLocaleString("fr-FR")} sommets · UV1.X de ${minimumWindWeight.toFixed(2)} à ${maximumWindWeight.toFixed(2)} · tronc max. ${trunkMaximumWeight.toFixed(2)}`);
+                    report.summary.push("Unreal : connecter TexCoord[1].X à WindWeight de SimpleGrassWind.");
+                }
                 const collisionStats = getCollisionComplexity(root);
                 report.collisionStats = collisionStats;
                 if (collisionStats.primitives === 0) {
@@ -760,6 +916,7 @@ function GLBExportBridge({ treeRef, onReady, onValidateReady }) {
             if (!treeRef.current) throw new Error("L’arbre n’est pas encore prêt à être exporté.");
 
             const root = treeRef.current.clone(true);
+            resetWindPose(root);
             root.name = "OpenTree";
             root.visible = true;
             root.traverse((object) => {
@@ -857,6 +1014,7 @@ function UnrealLodPreview({ treeRef, level, onError, onStats }) {
         let materials = [];
         try {
             const source = treeRef.current.clone(true);
+            resetWindPose(source);
             source.visible = true;
             source.traverse((object) => {
                 if (!object.isMesh) return;
@@ -949,7 +1107,7 @@ function Ground({ visible }) {
 }
 
 
-export default function Viewport3D({ onExportReady, onValidateReady, onTriangleCount, wireframe, showGrid, showShadows, showCollision }) {
+export default function Viewport3D({ onExportReady, onValidateReady, onTriangleCount, wireframe, showGrid, showShadows, showCollision, showWind }) {
     const treeRef = useRef(null);
     const [previewLod, setPreviewLod] = useState(0);
     const [previewError, setPreviewError] = useState("");
@@ -998,7 +1156,7 @@ export default function Viewport3D({ onExportReady, onValidateReady, onTriangleC
 
             <directionalLight position={[30, 24, -35]} intensity={0.55} />
 
-            <TreeModel treeRef={treeRef} wireframe={wireframe} visible={previewLod === 0} />
+            <TreeModel treeRef={treeRef} wireframe={wireframe} visible={previewLod === 0} windEnabled={showWind} />
             <CollisionPreview treeRef={treeRef} visible={showCollision} />
             <UnrealLodPreview treeRef={treeRef} level={previewLod} onError={handlePreviewError} onStats={handlePreviewStats} />
             <GLBExportBridge treeRef={treeRef} onReady={onExportReady} onValidateReady={onValidateReady} />

@@ -5,6 +5,7 @@ export const DEFAULT_TREE = {
     seed: 1, trunklength: 50, trunkradius: 2, trunkate: 30, subdivisions: 5,
     randomPercentage: 0, randomCoefficient: 1,
     collisionSegments: 8, collisionRadiusScale: 1.08,
+    windStrength: 0.4, windSpeed: 0.8, windDirection: 0, windGust: 0.2,
     branches: [],
     coconuts: [],
     leaves: [],

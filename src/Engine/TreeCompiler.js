@@ -8,6 +8,10 @@ const DEFAULT_TREE = {
     randomCoefficient: 1,
     collisionSegments: 8,
     collisionRadiusScale: 1.08,
+    windStrength: 0.4,
+    windSpeed: 0.8,
+    windDirection: 0,
+    windGust: 0.2,
     branches: [],
     coconuts: [],
     leaves: [],
@@ -67,6 +71,12 @@ export default class TreeCompiler {
                 case "collision":
                     tree.collisionSegments = number(data.collisionSegments, tree.collisionSegments, 1, 24);
                     tree.collisionRadiusScale = number(data.collisionRadiusScale, tree.collisionRadiusScale, 0.75, 1.5);
+                    break;
+                case "wind":
+                    tree.windStrength = number(data.windStrength, tree.windStrength, 0, 1);
+                    tree.windSpeed = number(data.windSpeed, tree.windSpeed, 0.1, 3);
+                    tree.windDirection = number(data.windDirection, tree.windDirection, -180, 180);
+                    tree.windGust = number(data.windGust, tree.windGust, 0, 1);
                     break;
                 case "subdivide": tree.subdivisions = number(data.subdivisions, tree.subdivisions, 1, 100); break;
                 case "randomize":

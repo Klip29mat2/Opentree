@@ -68,12 +68,14 @@ export function createUnrealLodScene(root, ratio) {
             const transformed = [];
             const normals = [];
             const uvs = [];
+            const windWeights = [];
             const colors = [];
             const normalMatrix = new THREE.Matrix3().getNormalMatrix(object.matrixWorld);
             const position = new THREE.Vector3();
             const normal = new THREE.Vector3();
             const sourceNormals = sourceGeometry.getAttribute("normal");
             const uv = sourceGeometry.getAttribute("uv");
+            const sourceWindWeights = sourceGeometry.getAttribute("uv1");
             const color = sourceGeometry.getAttribute("color");
             for (let corner = 0; corner < indices.length; corner += 1) {
                 const vertexIndex = indices[corner];
@@ -86,12 +88,17 @@ export function createUnrealLodScene(root, ratio) {
                 } else normals.push(0, 1, 0);
                 if (uv) uvs.push(uv.getX(vertexIndex), uv.getY(vertexIndex));
                 else uvs.push(0, 0);
-                if (color) colors.push(color.getX(vertexIndex), color.getY(vertexIndex), color.getZ(vertexIndex));
-                else colors.push(1, 1, 1);
+                const windWeight = THREE.MathUtils.clamp(sourceWindWeights?.getX(vertexIndex) ?? 0, 0, 1);
+                windWeights.push(windWeight, 0);
+                // Temporarily store the wind mask in color.R so SimplifyModifier carries
+                // it through vertex collapses. It is restored to UV channel 1 below.
+                if (color) colors.push(windWeight, color.getY(vertexIndex), color.getZ(vertexIndex));
+                else colors.push(windWeight, 1, 1);
             }
             geometry.setAttribute("position", new THREE.Float32BufferAttribute(transformed, 3));
             geometry.setAttribute("normal", new THREE.Float32BufferAttribute(normals, 3));
             geometry.setAttribute("uv", new THREE.Float32BufferAttribute(uvs, 2));
+            geometry.setAttribute("uv1", new THREE.Float32BufferAttribute(windWeights, 2));
             geometry.setAttribute("color", new THREE.Float32BufferAttribute(colors, 3));
             geometry.setIndex(indices.map((_, i) => i));
             if (!sections.has(key)) sections.set(key, []);
@@ -119,6 +126,14 @@ export function createUnrealLodScene(root, ratio) {
                     } else reduced.dispose();
                 }
             }
+            const colorAttribute = merged.getAttribute("color");
+            const windUv = new Float32Array(merged.getAttribute("position").count * 2);
+            for (let vertex = 0; vertex < merged.getAttribute("position").count; vertex += 1) {
+                const weight = colorAttribute ? THREE.MathUtils.clamp(colorAttribute.getX(vertex), 0, 1) : 0;
+                windUv[vertex * 2] = weight;
+                if (colorAttribute) colorAttribute.setX(vertex, colorAttribute.getY(vertex));
+            }
+            merged.setAttribute("uv1", new THREE.Float32BufferAttribute(windUv, 2));
             if ((merged.index?.count ?? 0) < 3) {
                 merged.dispose();
                 throw new Error(`La géométrie ${key} est vide après réduction.`);
