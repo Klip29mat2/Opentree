@@ -42,9 +42,22 @@ export default function ParameterNode({ id, type, data = {} }) {
                 }}
             >×</button>
         </div>
-        {entries.map(([key, label, min, max, step]) => <label className="parameter-node-field" key={key}>
-            {label}<input type="number" min={min} max={max} step={step} value={data[key] ?? defaults[key] ?? 0} onChange={(event) => update(key, event.target.value)} />
-        </label>)}
+        {entries.map(([key, label, min, max, step]) => {
+            const value = data[key] ?? defaults[key] ?? 0;
+            return <label className={`parameter-node-field${type === "collision" ? " parameter-node-slider-field" : ""}`} key={key}>
+                <span>{label}{type === "collision" && <strong>{key === "collisionRadiusScale" ? `${Math.round(value * 100)} %` : value}</strong>}</span>
+                <input
+                    className={type === "collision" ? "nodrag parameter-node-slider" : "nodrag"}
+                    type={type === "collision" ? "range" : "number"}
+                    min={min}
+                    max={max}
+                    step={step}
+                    value={value}
+                    onChange={(event) => update(key, event.target.value)}
+                    aria-label={label}
+                />
+            </label>;
+        })}
         {selects[type] && <label className="parameter-node-field">
             {selects[type].label}
             <select className="nodrag" value={data[selects[type].key] ?? defaults[selects[type].key]} onChange={(event) => update(selects[type].key, event.target.value, false)}>

@@ -149,6 +149,10 @@ button { color: inherit; }
 .parameter-node-field input:focus { border-color: rgba(145,201,154,.65); box-shadow: 0 0 0 2px rgba(145,201,154,.1); }
 .parameter-node-field select:focus { border-color: rgba(145,201,154,.65); box-shadow: 0 0 0 2px rgba(145,201,154,.1); }
 .parameter-node-field input::-webkit-inner-spin-button { opacity: .35; }
+.parameter-node-slider-field > span { display: flex; align-items: center; justify-content: space-between; color: #aab9ad; }
+.parameter-node-slider-field > span strong { color: #f1c1ad; font: 600 10px 'DM Mono', monospace; }
+.parameter-node-field input.parameter-node-slider { height: 14px; margin-top: 7px; padding: 0; border: 0; border-radius: 0; outline: 0; background: transparent; accent-color: #ee906e; cursor: pointer; }
+.parameter-node-field input.parameter-node-slider:focus-visible { box-shadow: none; outline: 2px solid #ee906e; outline-offset: 2px; }
 
 /* Add-node menu */
 .node-context-menu { position: absolute; z-index: 1000; width: 190px; max-height: min(78vh, 470px); overflow-y: auto; padding: 7px; border: 1px solid rgba(177,207,185,.17); border-radius: 10px; background: rgba(17,25,21,.97); box-shadow: 0 18px 48px rgba(0,0,0,.48); backdrop-filter: blur(15px); }
