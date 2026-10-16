@@ -25,6 +25,9 @@ export default function App() {
     const [triangleCount, setTriangleCount] = useState(0);
     const [exportStatus, setExportStatus] = useState("");
     const [exportGLB, setExportGLB] = useState(null);
+    const [exportValidator, setExportValidator] = useState(null);
+    const [exportValidation, setExportValidation] = useState(null);
+    const [pendingExport, setPendingExport] = useState(null);
     const saveQueue = useRef(Promise.resolve());
     const saveRevision = useRef(0);
     const mousePosition = useRef({ x: window.innerWidth / 2, y: window.innerHeight / 2 });
@@ -33,6 +36,7 @@ export default function App() {
     const compiler = useMemo(() => new TreeCompiler(), []);
     const compiled = useMemo(() => compiler.compile(nodes, edges), [compiler, nodes, edges]);
     const registerGLBExporter = useCallback((exporter) => setExportGLB(() => exporter), []);
+    const registerExportValidator = useCallback((validator) => setExportValidator(() => validator), []);
 
     const updateNodeData = useCallback((id, data) => setNodes((current) => current.map((node) => node.id === id ? { ...node, data } : node)), []);
     const removeNode = useCallback((id) => {
@@ -92,41 +96,44 @@ export default function App() {
         });
     }, [projectPath, screen, nodes, edges]);
 
-    const exportTree = useCallback(async () => {
-        if (!exportGLB) {
+    const beginExport = useCallback(async (kind) => {
+        if (!exportGLB || !exportValidator) {
             setExportStatus("3D view is still loading");
             return;
         }
-        setFileMenuOpen(false);
-        setExportStatus("Exporting GLB…");
         const projectName = projectPath?.split(/[\\/]/).at(-1).replace(/\.opentree$/i, "");
+        setExportStatus("Checking export…");
+        setFileMenuOpen(false);
         try {
-            await exportGLB(`${projectName || "opentree"}.glb`);
-            setExportStatus("GLB exported");
-            window.setTimeout(() => setExportStatus(""), 3000);
+            const report = await exportValidator(kind);
+            report.errors.push(...compiled.errors);
+            report.errors = [...new Set(report.errors)];
+            setExportValidation(report);
+            setPendingExport({ kind, filename: `${projectName || "opentree"}.glb` });
+            setExportStatus("");
         } catch (error) {
-            console.error("Impossible d’exporter le modèle GLB :", error);
-            setExportStatus("GLB export failed");
+            console.error("Impossible de valider l’export :", error);
+            setExportValidation({ errors: [error instanceof Error ? error.message : "La validation de l’export a échoué."], warnings: [], summary: [], lodStats: [] });
+            setPendingExport({ kind, filename: `${projectName || "opentree"}.glb` });
+            setExportStatus("");
         }
-    }, [exportGLB, projectPath]);
+    }, [compiled.errors, exportGLB, exportValidator, projectPath]);
 
-    const exportUnrealLods = useCallback(async () => {
-        if (!exportGLB) {
-            setExportStatus("3D view is still loading");
-            return;
-        }
-        setFileMenuOpen(false);
-        setExportStatus("Building Unreal FBX LODs…");
-        const projectName = projectPath?.split(/[\\/]/).at(-1).replace(/\.opentree$/i, "");
+    const confirmExport = useCallback(async () => {
+        if (!pendingExport || !exportGLB || exportValidation?.errors.length) return;
+        const { kind, filename } = pendingExport;
+        setExportValidation(null);
+        setPendingExport(null);
+        setExportStatus(kind === "unreal" ? "Building Unreal FBX LODs…" : "Exporting GLB…");
         try {
-            await exportGLB(`${projectName || "opentree"}.glb`, true);
-            setExportStatus("Unreal FBX LOD files exported");
-            window.setTimeout(() => setExportStatus(""), 5000);
+            await exportGLB(filename, kind === "unreal");
+            setExportStatus(kind === "unreal" ? "Unreal FBX LOD files exported" : "GLB exported");
+            window.setTimeout(() => setExportStatus(""), kind === "unreal" ? 5000 : 3000);
         } catch (error) {
-            console.error("Impossible d’exporter les LOD FBX Unreal :", error);
-            setExportStatus("Unreal FBX LOD export failed");
+            console.error("Impossible d’exporter le modèle :", error);
+            setExportStatus(kind === "unreal" ? "Unreal FBX LOD export failed" : "GLB export failed");
         }
-    }, [exportGLB, projectPath]);
+    }, [exportGLB, exportValidation, pendingExport]);
 
     useEffect(() => {
         if (!projectPath || screen !== "editor") return undefined;
@@ -166,7 +173,7 @@ export default function App() {
 
     if (screen === "home") return <StartMenu newProject={newProject} openProject={openProject} />;
     return <div className="editor-shell">
-        <Viewport3D onExportReady={registerGLBExporter} onTriangleCount={setTriangleCount} wireframe={wireframe} showGrid={showGrid} showShadows={showShadows} />
+        <Viewport3D onExportReady={registerGLBExporter} onValidateReady={registerExportValidator} onTriangleCount={setTriangleCount} wireframe={wireframe} showGrid={showGrid} showShadows={showShadows} />
         <ReactFlow className="graph-pane" nodes={graphNodes} edges={edges} nodeTypes={nodeTypes} onNodesChange={onNodesChange} onEdgesChange={onEdgesChange} onConnect={onConnect} onInit={(instance) => { flowInstance.current = instance; }} deleteKeyCode={["Backspace", "Delete"]} snapToGrid snapGrid={[20, 20]} fitView colorMode="dark">
             <Background color="#333" gap={20} /><Controls />
         </ReactFlow>
@@ -175,8 +182,8 @@ export default function App() {
             <div className="file-menu-wrap">
                 <button className="file-menu-trigger" aria-haspopup="menu" aria-expanded={fileMenuOpen} onClick={() => setFileMenuOpen((open) => !open)}>File <span>⌄</span></button>
                 {fileMenuOpen && <div className="file-menu" role="menu">
-                    <button role="menuitem" onClick={exportTree}><span>⇧</span><span>Export as GLB<small>Binary glTF · .glb</small></span></button>
-                    <button role="menuitem" onClick={exportUnrealLods}><span>⇧</span><span>Export Unreal FBX LODs<small>LOD0, LOD1 and LOD2 · .fbx</small></span></button>
+                    <button role="menuitem" onClick={() => beginExport("glb")}><span>⇧</span><span>Export as GLB<small>Binary glTF · .glb</small></span></button>
+                    <button role="menuitem" onClick={() => beginExport("unreal")}><span>⇧</span><span>Export Unreal FBX LODs<small>LOD0, LOD1 and LOD2 · .fbx</small></span></button>
                 </div>}
             </div>
             <div className="file-menu-wrap">
@@ -192,6 +199,29 @@ export default function App() {
         </div>
         <button className="save-button" onClick={saveProject}><span>◉</span> Save project</button>
         {compiled.errors.length > 0 && <div className="graph-error">{compiled.errors.join(" ")}</div>}
+        {exportValidation && <div className="export-validation-backdrop" role="presentation">
+            <section className="export-validation" role="dialog" aria-modal="true" aria-labelledby="export-validation-title">
+                <div className="export-validation-heading">
+                    <span className={`export-validation-icon ${exportValidation.errors.length ? "has-errors" : exportValidation.warnings.length ? "has-warnings" : "is-valid"}`} aria-hidden="true">
+                        {exportValidation.errors.length ? "!" : exportValidation.warnings.length ? "⚠" : "✓"}
+                    </span>
+                    <div>
+                        <h2 id="export-validation-title">Validation de l’export</h2>
+                        <p>{exportValidation.errors.length ? "Des erreurs empêchent l’export." : exportValidation.warnings.length ? "Vérifie ces avertissements avant de continuer." : "Le modèle est prêt à être exporté."}</p>
+                    </div>
+                </div>
+                {exportValidation.summary.length > 0 && <ul className="export-validation-summary">{exportValidation.summary.map((item) => <li key={item}>{item}</li>)}</ul>}
+                {exportValidation.lodStats.length > 0 && <div className="export-validation-lods">
+                    {exportValidation.lodStats.map(({ level, triangles }) => <div key={level}><span>{level}</span><strong>{triangles.toLocaleString("fr-FR")} triangles</strong></div>)}
+                </div>}
+                {exportValidation.warnings.length > 0 && <div className="export-validation-list warning-list"><h3>Avertissements</h3><ul>{exportValidation.warnings.map((item) => <li key={item}>{item}</li>)}</ul></div>}
+                {exportValidation.errors.length > 0 && <div className="export-validation-list error-list"><h3>Erreurs</h3><ul>{exportValidation.errors.map((item) => <li key={item}>{item}</li>)}</ul></div>}
+                <div className="export-validation-actions">
+                    <button type="button" onClick={() => { setExportValidation(null); setPendingExport(null); setExportStatus(""); }}>Fermer</button>
+                    {!exportValidation.errors.length && <button type="button" className="export-validation-continue" onClick={confirmExport}>Continuer l’export</button>}
+                </div>
+            </section>
+        </div>}
         <NodeContextMenu menu={menu} createNode={createNode} />
     </div>;
 }

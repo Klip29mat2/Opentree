@@ -587,8 +587,96 @@ function TreeModel({ treeRef, wireframe, visible = true }) {
     );
 }
 
-function GLBExportBridge({ treeRef, onReady }) {
+function GLBExportBridge({ treeRef, onReady, onValidateReady }) {
     useEffect(() => {
+        onValidateReady(async (kind) => {
+            const report = { errors: [], warnings: [], summary: [], lodStats: [] };
+            const root = treeRef.current;
+            if (!root) {
+                report.errors.push("L’arbre 3D n’est pas encore prêt.");
+                return report;
+            }
+
+            let meshCount = 0;
+            let triangleCount = 0;
+            root.traverse((object) => {
+                if (!object.isMesh) return;
+                meshCount += 1;
+                const geometry = object.geometry;
+                const positions = geometry?.getAttribute("position");
+                if (!positions || positions.count < 3) {
+                    report.errors.push(`${object.name || "Un mesh"} ne contient pas assez de sommets.`);
+                    return;
+                }
+                const indexCount = geometry.index?.count ?? positions.count;
+                if (indexCount < 3 || indexCount % 3 !== 0) {
+                    report.errors.push(`${object.name || "Un mesh"} contient une géométrie incomplète (indices non divisibles par 3).`);
+                    return;
+                }
+                const positionArray = positions.array;
+                for (let index = 0; index < positionArray.length; index += 1) {
+                    if (!Number.isFinite(positionArray[index])) {
+                        report.errors.push(`${object.name || "Un mesh"} contient des coordonnées non finies.`);
+                        break;
+                    }
+                }
+                if (geometry.index) {
+                    const indexArray = geometry.index.array;
+                    for (let index = 0; index < indexArray.length; index += 1) {
+                        if (indexArray[index] >= positions.count) {
+                            report.errors.push(`${object.name || "Un mesh"} référence un sommet inexistant.`);
+                            break;
+                        }
+                    }
+                }
+                triangleCount += indexCount / 3;
+
+                const materials = Array.isArray(object.material) ? object.material : [object.material];
+                if (!materials.length || materials.some((material) => !material)) {
+                    report.errors.push(`${object.name || "Un mesh"} n’a pas de matériau valide.`);
+                }
+                materials.forEach((material) => {
+                    if (!material?.map) return;
+                    const image = material.map.image;
+                    if (!image || image.complete === false || image.width === 0 || image.height === 0) {
+                        report.warnings.push(`La texture du matériau « ${material.name || "sans nom"} » semble absente ou non chargée.`);
+                    }
+                });
+            });
+
+            if (meshCount === 0) report.errors.push("Aucun mesh n’a été trouvé dans l’arbre.");
+            if (triangleCount === 0) report.errors.push("La géométrie de l’arbre ne contient aucun triangle.");
+            report.summary.push(`${meshCount} mesh${meshCount > 1 ? "es" : ""} · ${Math.round(triangleCount).toLocaleString("fr-FR")} triangles`);
+
+            if (kind === "unreal" && report.errors.length === 0) {
+                for (const [level, ratio] of [["LOD 0", 1], ["LOD 1", 0.55], ["LOD 2", 0.4]]) {
+                    let lodScene;
+                    try {
+                        lodScene = createUnrealLodScene(root, ratio);
+                        let triangles = 0;
+                        lodScene.traverse((object) => {
+                            if (!object.isMesh || !object.geometry) return;
+                            triangles += (object.geometry.index?.count ?? object.geometry.getAttribute("position")?.count ?? 0) / 3;
+                        });
+                        const count = Math.round(triangles);
+                        report.lodStats.push({ level, triangles: count });
+                        if (count === 0) report.errors.push(`${level} est vide et ne pourra pas être importé dans Unreal.`);
+                    } catch (error) {
+                        report.errors.push(`${level} : ${error instanceof Error ? error.message : "géométrie invalide"}`);
+                    } finally {
+                        lodScene?.traverse((object) => object.geometry?.dispose());
+                        lodScene?.clear();
+                    }
+                }
+                if (report.lodStats.length === 3) {
+                    const [lod0, lod1, lod2] = report.lodStats.map((entry) => entry.triangles);
+                    if (lod1 >= lod0 || lod2 >= lod1) report.warnings.push("La réduction du nombre de triangles n’est pas strictement décroissante entre tous les LOD.");
+                }
+            }
+            report.errors = [...new Set(report.errors)];
+            report.warnings = [...new Set(report.warnings)];
+            return report;
+        });
         onReady(async (filename, unrealLods = false) => {
             if (!treeRef.current) throw new Error("L’arbre n’est pas encore prêt à être exporté.");
 
@@ -647,13 +735,16 @@ function GLBExportBridge({ treeRef, onReady }) {
             // Keep a safer triangle floor for UE's FBX MeshDescription builder.
             await buildLod("LOD2", 0.4);
         });
-        return () => onReady(null);
-    }, [onReady, treeRef]);
+        return () => {
+            onReady(null);
+            onValidateReady(null);
+        };
+    }, [onReady, onValidateReady, treeRef]);
 
     return null;
 }
 
-function UnrealLodPreview({ treeRef, level, onError }) {
+function UnrealLodPreview({ treeRef, level, onError, onStats }) {
     const { tree } = useTree();
     const [preview, setPreview] = useState(null);
 
@@ -683,6 +774,12 @@ function UnrealLodPreview({ treeRef, level, onError }) {
             });
             const ratio = [1, 0.55, 0.4][level];
             scene = createUnrealLodScene(source, ratio);
+            let triangles = 0;
+            scene.traverse((object) => {
+                if (!object.isMesh || !object.geometry) return;
+                triangles += (object.geometry.index?.count ?? object.geometry.getAttribute("position")?.count ?? 0) / 3;
+            });
+            onStats({ level, triangles: Math.round(triangles) });
             setPreview(scene);
             onError("");
         } catch (error) {
@@ -694,7 +791,7 @@ function UnrealLodPreview({ treeRef, level, onError }) {
             scene?.clear();
             materials.forEach((material) => material.dispose());
         };
-    }, [level, onError, tree, treeRef]);
+    }, [level, onError, onStats, tree, treeRef]);
 
     return preview ? <primitive object={preview} dispose={null} /> : null;
 }
@@ -754,11 +851,17 @@ function Ground({ visible }) {
 }
 
 
-export default function Viewport3D({ onExportReady, onTriangleCount, wireframe, showGrid, showShadows }) {
+export default function Viewport3D({ onExportReady, onValidateReady, onTriangleCount, wireframe, showGrid, showShadows }) {
     const treeRef = useRef(null);
     const [previewLod, setPreviewLod] = useState(0);
     const [previewError, setPreviewError] = useState("");
+    const [previewStats, setPreviewStats] = useState(null);
+    const [lod0Triangles, setLod0Triangles] = useState(null);
     const handlePreviewError = useCallback((message) => setPreviewError(message), []);
+    const handlePreviewStats = useCallback(({ level, triangles }) => {
+        setPreviewStats({ level, triangles });
+        if (level === 0) setLod0Triangles(triangles);
+    }, []);
 
     const lodOptions = [
         { level: 0, title: "LOD 0", detail: "Qualité maximale" },
@@ -798,8 +901,8 @@ export default function Viewport3D({ onExportReady, onTriangleCount, wireframe, 
             <directionalLight position={[30, 24, -35]} intensity={0.55} />
 
             <TreeModel treeRef={treeRef} wireframe={wireframe} visible={false} />
-            <UnrealLodPreview treeRef={treeRef} level={previewLod} onError={handlePreviewError} />
-            <GLBExportBridge treeRef={treeRef} onReady={onExportReady} />
+            <UnrealLodPreview treeRef={treeRef} level={previewLod} onError={handlePreviewError} onStats={handlePreviewStats} />
+            <GLBExportBridge treeRef={treeRef} onReady={onExportReady} onValidateReady={onValidateReady} />
             <PolygonStatsBridge treeRef={treeRef} onTriangleCount={onTriangleCount} />
 
             <Ground visible={showGrid} />
@@ -819,11 +922,25 @@ export default function Viewport3D({ onExportReady, onTriangleCount, wireframe, 
                             type="button"
                             className="lod-preview-button"
                             aria-pressed={previewLod === level}
-                            onClick={() => setPreviewLod(level)}
+                            onClick={() => {
+                                setPreviewLod(level);
+                                setPreviewStats(null);
+                                setPreviewError("");
+                            }}
                         >
                             {title}
                         </button>
                     ))}
+                </div>
+                <div className="lod-preview-stats" aria-live="polite">
+                    {previewStats?.level === previewLod ? (
+                        <>
+                            <strong>{previewStats.triangles.toLocaleString("fr-FR")}</strong> triangles
+                            {previewLod > 0 && lod0Triangles > 0 && (
+                                <span> · −{Math.round((1 - previewStats.triangles / lod0Triangles) * 100)} % vs LOD 0</span>
+                            )}
+                        </>
+                    ) : previewError ? "Statistiques indisponibles" : "Calcul des triangles…"}
                 </div>
                 {previewError && <span className="lod-preview-error" role="status">{previewError}</span>}
             </div>
