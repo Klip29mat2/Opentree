@@ -1,0 +1,209 @@
+{
+  "nodes": [
+    {
+      "id": "1",
+      "type": "seed",
+      "position": {
+        "x": 80,
+        "y": 180
+      },
+      "data": {
+        "seed": 1
+      }
+    },
+    {
+      "id": "2",
+      "type": "trunk",
+      "position": {
+        "x": 300,
+        "y": 180
+      },
+      "data": {
+        "trunklength": 50,
+        "trunkradius": 2
+      }
+    },
+    {
+      "id": "3",
+      "type": "rotate",
+      "position": {
+        "x": 550,
+        "y": 100
+      },
+      "data": {
+        "x": 0,
+        "y": 0,
+        "z": 0
+      }
+    },
+    {
+      "id": "4",
+      "type": "scale",
+      "position": {
+        "x": 550,
+        "y": 280
+      },
+      "data": {
+        "x": 1,
+        "y": 1,
+        "z": 1
+      }
+    },
+    {
+      "id": "5",
+      "type": "subdivide",
+      "position": {
+        "x": 800,
+        "y": 180
+      },
+      "data": {
+        "subdivisions": 5
+      }
+    },
+    {
+      "id": "6",
+      "type": "randomize",
+      "position": {
+        "x": 1050,
+        "y": 180
+      },
+      "data": {
+        "randomPercentage": 0,
+        "randomCoefficient": 1
+      }
+    },
+    {
+      "id": "7",
+      "type": "move",
+      "position": {
+        "x": 1300,
+        "y": 180
+      },
+      "data": {
+        "x": 0,
+        "y": 25,
+        "z": 0
+      }
+    },
+    {
+      "id": "8",
+      "type": "trunkate",
+      "position": {
+        "x": 1550,
+        "y": 180
+      },
+      "data": {
+        "trunkate": 30
+      }
+    },
+    {
+      "id": "9",
+      "type": "collision",
+      "position": {
+        "x": 1800,
+        "y": 180
+      },
+      "data": {
+        "collisionSegments": 8,
+        "collisionRadiusScale": 1.08
+      }
+    },
+    {
+      "id": "10",
+      "type": "wind",
+      "position": {
+        "x": 2050,
+        "y": 180
+      },
+      "data": {
+        "windStrength": 0.4,
+        "windSpeed": 0.8,
+        "windDirection": 0,
+        "windGust": 0.2
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "e1-2",
+      "source": "1",
+      "target": "2",
+      "animated": true,
+      "style": {
+        "stroke": "#81c784"
+      }
+    },
+    {
+      "id": "e2-3",
+      "source": "2",
+      "target": "3",
+      "animated": true,
+      "style": {
+        "stroke": "#81c784"
+      }
+    },
+    {
+      "id": "e3-4",
+      "source": "3",
+      "target": "4",
+      "animated": true,
+      "style": {
+        "stroke": "#81c784"
+      }
+    },
+    {
+      "id": "e4-5",
+      "source": "4",
+      "target": "5",
+      "animated": true,
+      "style": {
+        "stroke": "#81c784"
+      }
+    },
+    {
+      "id": "e5-6",
+      "source": "5",
+      "target": "6",
+      "animated": true,
+      "style": {
+        "stroke": "#81c784"
+      }
+    },
+    {
+      "id": "e6-7",
+      "source": "6",
+      "target": "7",
+      "animated": true,
+      "style": {
+        "stroke": "#81c784"
+      }
+    },
+    {
+      "id": "e7-8",
+      "source": "7",
+      "target": "8",
+      "animated": true,
+      "style": {
+        "stroke": "#81c784"
+      }
+    },
+    {
+      "id": "e8-9",
+      "source": "8",
+      "target": "9",
+      "animated": true,
+      "style": {
+        "stroke": "#81c784"
+      }
+    },
+    {
+      "id": "e9-10",
+      "source": "9",
+      "target": "10",
+      "animated": true,
+      "style": {
+        "stroke": "#81c784"
+      }
+    }
+  ]
+}

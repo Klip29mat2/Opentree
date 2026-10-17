@@ -41,6 +41,7 @@
       "dist/**/*",
       "main.js",
       "preload.js",
+      "defaultGraph.json",
       "package.json"
     ],
     "linux": {

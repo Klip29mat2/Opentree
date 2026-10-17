@@ -1,10 +1,16 @@
 const { app, BrowserWindow, ipcMain, dialog } = require("electron");
 const fs = require("node:fs/promises");
 const path = require("node:path");
+const defaultGraphTemplate = require("./defaultGraph.json");
 
 let mainWindow;
 const projectPaths = new Map();
-const emptyProject = (name = "NewTreeProject") => ({ formatVersion: 1, name, graph: { nodes: [], edges: [] } });
+const createDefaultGraph = () => structuredClone(defaultGraphTemplate);
+const emptyProject = (name = "NewTreeProject") => ({
+    formatVersion: 1,
+    name,
+    graph: createDefaultGraph(),
+});
 
 function createWindow() {
     mainWindow = new BrowserWindow({
